@@ -221,7 +221,7 @@ describe("fusion combo", () => {
         input: [
           { type: "message", role: "user", content: [{ type: "input_text", text: "find files" }] },
           { type: "function_call", name: "exec_command", call_id: "c1", arguments: "{\"cmd\":\"dir\"}" },
-          { type: "function_call_output", call_id: "c1", output: "file.txt" },
+          { type: "function_call_output", call_id: "c1", output: [{ type: "input_text", text: "file.txt" }] },
           { type: "message", role: "user", content: [{ type: "input_text", text: "describe it" }] }
         ],
         tools: [{ type: "function" }]
