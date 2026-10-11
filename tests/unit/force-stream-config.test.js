@@ -86,6 +86,7 @@ vi.mock("../../open-sse/translator/concerns/prefetch.js", () => ({
 }));
 
 vi.mock("../../open-sse/handlers/chatCore/requestDetail.js", () => ({
+  createRequestDetailId: vi.fn(() => "test-request-detail"),
   buildRequestDetail: vi.fn((detail) => detail),
   extractRequestConfig: vi.fn((body, stream) => ({ body, stream })),
 }));
