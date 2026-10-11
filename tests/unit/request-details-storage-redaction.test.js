@@ -55,7 +55,10 @@ describe("request detail storage redaction", () => {
       model: "gpt-test",
       status: "success",
       request: { messages: [{ role: "user", content: "user-secret" }] },
-      providerRequest: { input: "provider-secret" },
+      providerRequest: {
+        input: "provider-secret",
+        client_metadata: { session_id: "session-safe" },
+      },
       providerResponse: { output: "response-secret" },
       response: { content: "answer-secret" },
     });
@@ -67,8 +70,34 @@ describe("request detail storage redaction", () => {
 
     expect(stored.request).toEqual({ redacted: true });
     expect(stored.providerRequest).toEqual({ redacted: true });
+    expect(stored.clientMetadata).toEqual({ session_id: "session-safe" });
     expect(stored.providerResponse).toEqual({ redacted: true });
     expect(stored.response).toEqual({ redacted: true });
     expect(JSON.stringify(stored)).not.toMatch(/secret/);
+  });
+
+  it("persists the request detail correlation key on usage rows", async () => {
+    const timestamp = "2026-10-11T10:00:00.000Z";
+    await db.saveRequestUsage({
+      provider: "codex",
+      model: "gpt-test",
+      timestamp,
+      requestDetailId: testDetailId,
+      tokens: { prompt_tokens: 10, completion_tokens: 2 },
+    });
+
+    const usage = adapter.get("SELECT meta FROM usageHistory WHERE timestamp = ?", [timestamp]);
+    expect(JSON.parse(usage.meta)).toEqual({ request_detail_id: testDetailId });
+  });
+
+  it("does not deduplicate distinct correlated requests at the same timestamp", async () => {
+    const timestamp = "2026-10-11T10:00:01.000Z";
+    await Promise.all([
+      db.saveRequestUsage({ provider: "codex", model: "gpt-test", timestamp, requestDetailId: "request-A", tokens: { prompt_tokens: 10, completion_tokens: 2 } }),
+      db.saveRequestUsage({ provider: "codex", model: "gpt-test", timestamp, requestDetailId: "request-B", tokens: { prompt_tokens: 10, completion_tokens: 2 } }),
+    ]);
+
+    const rows = adapter.all("SELECT meta FROM usageHistory WHERE timestamp = ? ORDER BY id", [timestamp]);
+    expect(rows.map((row) => JSON.parse(row.meta).request_detail_id)).toEqual(["request-A", "request-B"]);
   });
 });
