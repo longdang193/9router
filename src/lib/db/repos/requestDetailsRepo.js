@@ -81,6 +81,13 @@ function redactPayload(value) {
   return value === undefined || value === null ? {} : { redacted: true };
 }
 
+function safeClientMetadata(providerRequest) {
+  const sessionId = providerRequest?.client_metadata?.session_id;
+  return typeof sessionId === "string" && sessionId.length > 0
+    ? { session_id: sessionId }
+    : undefined;
+}
+
 async function flushToDatabase() {
   if (isFlushing) return;
   if (writeBuffer.length === 0) return;
@@ -107,6 +114,7 @@ async function flushToDatabase() {
             status: item.status || null,
             latency: item.latency || {},
             tokens: item.tokens || {},
+            clientMetadata: safeClientMetadata(item.providerRequest),
             request: redactPayload(item.request),
             providerRequest: redactPayload(item.providerRequest),
             providerResponse: redactPayload(item.providerResponse),

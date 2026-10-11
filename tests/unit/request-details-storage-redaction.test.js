@@ -55,7 +55,10 @@ describe("request detail storage redaction", () => {
       model: "gpt-test",
       status: "success",
       request: { messages: [{ role: "user", content: "user-secret" }] },
-      providerRequest: { input: "provider-secret" },
+      providerRequest: {
+        input: "provider-secret",
+        client_metadata: { session_id: "session-safe" },
+      },
       providerResponse: { output: "response-secret" },
       response: { content: "answer-secret" },
     });
@@ -67,6 +70,7 @@ describe("request detail storage redaction", () => {
 
     expect(stored.request).toEqual({ redacted: true });
     expect(stored.providerRequest).toEqual({ redacted: true });
+    expect(stored.clientMetadata).toEqual({ session_id: "session-safe" });
     expect(stored.providerResponse).toEqual({ redacted: true });
     expect(stored.response).toEqual({ redacted: true });
     expect(JSON.stringify(stored)).not.toMatch(/secret/);
