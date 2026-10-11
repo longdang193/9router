@@ -8,6 +8,7 @@ import {
 import { getSettings } from "@/lib/localDb";
 import { getModelInfo } from "../services/model.js";
 import { handleEmbeddingsCore } from "open-sse/handlers/embeddingsCore.js";
+import { createRequestDetailId } from "open-sse/handlers/chatCore/requestDetail.js";
 import { errorResponse, unavailableResponse } from "open-sse/utils/error.js";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
 import * as log from "../utils/logger.js";
@@ -82,6 +83,7 @@ export async function handleEmbeddings(request) {
   }
 
   const { provider, model } = modelInfo;
+  const requestDetailId = createRequestDetailId(model);
 
   if (modelStr !== `${provider}/${model}`) {
     log.info("ROUTING", `${modelStr} → ${provider}/${model}`);
@@ -145,6 +147,7 @@ export async function handleEmbeddings(request) {
           endpoint: url.pathname,
           tokens: usage,
           status: "success",
+          requestDetailId,
         }).catch(() => {});
       }
       return result.response;

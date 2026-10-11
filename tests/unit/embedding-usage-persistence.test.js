@@ -63,6 +63,7 @@ describe("embedding usage persistence", () => {
       endpoint: "/v1/embeddings",
       status: "success",
       tokens: { prompt_tokens: 12, completion_tokens: 0, total_tokens: 12 },
+      requestDetailId: expect.any(String),
     }));
   });
 

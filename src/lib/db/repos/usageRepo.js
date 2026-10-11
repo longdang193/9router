@@ -258,6 +258,9 @@ export async function saveRequestUsage(entry) {
     // All 3 writes (history insert, daily upsert, lifetime counter) in ONE transaction.
     // better-sqlite3 is sync → no JS yield mid-transaction → no race in same process.
     db.transaction(() => {
+      const correlationClause = requestDetailId
+        ? "AND json_extract(meta, '$.request_detail_id') = ?"
+        : "AND (meta IS NULL OR json_extract(meta, '$.request_detail_id') IS NULL)";
       const existing = db.get(
         `SELECT id, endpoint, meta FROM usageHistory
          WHERE timestamp = ?
@@ -267,17 +270,19 @@ export async function saveRequestUsage(entry) {
            AND COALESCE(apiKey, '') = COALESCE(?, '')
            AND promptTokens = ?
            AND completionTokens = ?
+           ${correlationClause}
          ORDER BY id DESC LIMIT 1`,
         [
           entry.timestamp, entry.provider || null, entry.model || null,
           entry.connectionId || null, entry.apiKey || null,
           promptTokens, completionTokens,
+          ...(requestDetailId ? [requestDetailId] : []),
         ]
       );
 
       if (existing) {
         const existingMeta = parseJson(existing.meta, {});
-        if ((!existing.endpoint && entry.endpoint) || (requestDetailId && !existingMeta.request_detail_id)) {
+        if (!existing.endpoint && entry.endpoint) {
           db.run(
             `UPDATE usageHistory SET endpoint = ?, meta = ? WHERE id = ?`,
             [existing.endpoint || entry.endpoint || null, stringifyJson({ ...existingMeta, ...meta }), existing.id],

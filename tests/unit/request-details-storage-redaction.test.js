@@ -89,4 +89,15 @@ describe("request detail storage redaction", () => {
     const usage = adapter.get("SELECT meta FROM usageHistory WHERE timestamp = ?", [timestamp]);
     expect(JSON.parse(usage.meta)).toEqual({ request_detail_id: testDetailId });
   });
+
+  it("does not deduplicate distinct correlated requests at the same timestamp", async () => {
+    const timestamp = "2026-10-11T10:00:01.000Z";
+    await Promise.all([
+      db.saveRequestUsage({ provider: "codex", model: "gpt-test", timestamp, requestDetailId: "request-A", tokens: { prompt_tokens: 10, completion_tokens: 2 } }),
+      db.saveRequestUsage({ provider: "codex", model: "gpt-test", timestamp, requestDetailId: "request-B", tokens: { prompt_tokens: 10, completion_tokens: 2 } }),
+    ]);
+
+    const rows = adapter.all("SELECT meta FROM usageHistory WHERE timestamp = ? ORDER BY id", [timestamp]);
+    expect(rows.map((row) => JSON.parse(row.meta).request_detail_id)).toEqual(["request-A", "request-B"]);
+  });
 });
