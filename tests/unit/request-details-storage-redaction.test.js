@@ -75,4 +75,18 @@ describe("request detail storage redaction", () => {
     expect(stored.response).toEqual({ redacted: true });
     expect(JSON.stringify(stored)).not.toMatch(/secret/);
   });
+
+  it("persists the request detail correlation key on usage rows", async () => {
+    const timestamp = "2026-10-11T10:00:00.000Z";
+    await db.saveRequestUsage({
+      provider: "codex",
+      model: "gpt-test",
+      timestamp,
+      requestDetailId: testDetailId,
+      tokens: { prompt_tokens: 10, completion_tokens: 2 },
+    });
+
+    const usage = adapter.get("SELECT meta FROM usageHistory WHERE timestamp = ?", [timestamp]);
+    expect(JSON.parse(usage.meta)).toEqual({ request_detail_id: testDetailId });
+  });
 });
