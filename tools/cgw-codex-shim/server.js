@@ -133,6 +133,7 @@ export function createRequestHandler({ config, executeTurn }) {
       const result = await queue.run(() => executeTurn({
         model: requestInfo.model,
         prompt: requestInfo.prompt,
+        reasoningEffort: requestInfo.reasoningEffort,
         signal: abortController.signal,
       }));
       if (response.destroyed) return;

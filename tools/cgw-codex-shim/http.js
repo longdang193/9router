@@ -14,6 +14,16 @@ export async function readJsonBody(request, maxBytes) {
   }
 }
 
+const REASONING_EFFORTS = new Set(["low", "medium", "high"]);
+
+function parseReasoningEffort(value) {
+  if (value === undefined) return undefined;
+  if (typeof value !== "string" || !REASONING_EFFORTS.has(value)) {
+    throw new Error("reasoning_effort must be one of: low, medium, high");
+  }
+  return value;
+}
+
 export function validateChatRequest(body, modelAliases) {
   if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("request body must be an object");
   if (body.tools !== undefined || body.tool_choice !== undefined) throw new Error("tools are not supported");
@@ -23,7 +33,9 @@ export function validateChatRequest(body, modelAliases) {
   const [message] = body.messages;
   if (message?.role !== "user") throw new Error("only one user message is supported");
   if (typeof message.content !== "string" || !message.content.trim()) throw new Error("message content must be plain text");
-  return { model: modelAliases[body.model], prompt: message.content };
+  const result = { model: modelAliases[body.model], prompt: message.content };
+  if (body.reasoning_effort !== undefined) result.reasoningEffort = parseReasoningEffort(body.reasoning_effort);
+  return result;
 }
 
 export function jsonResponse(body, status = 200, headers = {}) {

@@ -55,6 +55,20 @@ test("returns a non-stream chat completion", async () => {
   });
 });
 
+test("passes reasoning effort through to native execution", async () => {
+  await withServer(async ({ reasoningEffort }) => {
+    assert.equal(reasoningEffort, "high");
+    return { text: "reasoned", dispatchStarted: true };
+  }, async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/v1/chat/completions`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({ model: "gpt-test", reasoning_effort: "high", messages: [{ role: "user", content: "hello" }] }),
+    });
+    assert.equal(response.status, 200);
+  });
+});
+
 test("returns valid buffered SSE", async () => {
   await withServer(async () => ({ text: "streamed", dispatchStarted: true }), async (baseUrl) => {
     const response = await fetch(`${baseUrl}/v1/chat/completions`, {

@@ -40,6 +40,11 @@ test("builds an argument array without shell interpolation", () => {
   assert.equal(args.at(-1), "hello; do not execute");
 });
 
+test("passes the requested reasoning effort as a native config override", () => {
+  const args = buildCodexArgs({ model: "native-test", prompt: "hello", reasoningEffort: "high", config });
+  assert.equal(args.includes('model_reasoning_effort="high"'), true);
+});
+
 test("parses JSONL Codex events and ignores diagnostics", () => {
   assert.deepEqual(parseCodexEventLine('{"type":"turn.completed"}'), { type: "turn.completed" });
   assert.equal(parseCodexEventLine("not-json"), null);
