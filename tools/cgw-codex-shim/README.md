@@ -22,7 +22,7 @@ Chat Completions request into one bounded native `codex exec` invocation.
 
 The shim automatically loads `.env` from the repository root when any shim
 entrypoint starts. Existing process environment variables remain authoritative.
-Use `.env.example` as the template and keep the real `.env` uncommitted.
+Keep the real `.env` uncommitted; add the relay variables shown below to your local file.
 
 Start the long-running relay with:
 
