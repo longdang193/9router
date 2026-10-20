@@ -17,6 +17,7 @@ Recorded on 2026-10-20 (Europe/Berlin) during the Task 1 native gate.
 | Persistent execution | `codex exec --json --sandbox read-only --skip-git-repo-check` | `turn.completed`, final text `CGW_NATIVE_OK` |
 | Ephemeral execution | Same command with `--ephemeral` and explicit local provider/base URL overrides | `turn.completed`, final text `CGW_EPHEMERAL_OK` |
 | Native result | Both modes | Genuine terminal event and valid final assistant message observed |
+| Thinking override | `reasoning_effort=low|medium|high` | Passed to native Codex as `model_reasoning_effort`; omitted requests keep the native default |
 | Coexistence | Development 9Router source, installed 9Router, existing adapter, and CGW runtime | Compatible for the approved text-only smoke; PR #111 was not modified |
 
 ## Anomaly

@@ -10,6 +10,22 @@ test("accepts exactly one plain user message", () => {
   assert.deepEqual(result, { model: "native-test", prompt: "hello" });
 });
 
+test("accepts only low, medium, and high reasoning effort values", () => {
+  for (const effort of ["low", "medium", "high"]) {
+    const result = validateChatRequest({
+      model: "gpt-test",
+      reasoning_effort: effort,
+      messages: [{ role: "user", content: "hello" }],
+    }, { "gpt-test": "native-test" });
+    assert.equal(result.reasoningEffort, effort);
+  }
+  assert.throws(() => validateChatRequest({
+    model: "gpt-test",
+    reasoning_effort: "normal",
+    messages: [{ role: "user", content: "hello" }],
+  }, { "gpt-test": "native-test" }), /reasoning_effort/);
+});
+
 test("rejects unsupported roles, tools, and multimodal content", () => {
   assert.throws(() => validateChatRequest({ model: "gpt-test", messages: [{ role: "system", content: "x" }] }, { "gpt-test": "native-test" }), /user message/);
   assert.throws(() => validateChatRequest({ model: "gpt-test", tools: [], messages: [{ role: "user", content: "x" }] }, { "gpt-test": "native-test" }), /tools/);

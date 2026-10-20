@@ -7,7 +7,7 @@ function tomlString(value) {
   return JSON.stringify(String(value));
 }
 
-export function buildCodexArgs({ model, prompt, config }) {
+export function buildCodexArgs({ model, prompt, reasoningEffort, config }) {
   const providerKey = config.native.modelProvider;
   const args = [
     "exec",
@@ -24,6 +24,7 @@ export function buildCodexArgs({ model, prompt, config }) {
     "-c",
     `model_providers.${providerKey}.wire_api=${tomlString(config.native.wireApi)}`,
   ];
+  if (reasoningEffort) args.push("-c", `model_reasoning_effort=${tomlString(reasoningEffort)}`);
   if (config.native.ephemeral) args.push("--ephemeral");
   args.push(prompt);
   return args;
@@ -87,6 +88,7 @@ export function runCodexTurn({
   config,
   model,
   prompt,
+  reasoningEffort,
   signal,
   spawnImpl = nodeSpawn,
   terminateImpl = terminateProcessTree,
@@ -97,7 +99,7 @@ export function runCodexTurn({
       return;
     }
 
-    const args = buildCodexArgs({ model, prompt, config });
+    const args = buildCodexArgs({ model, prompt, reasoningEffort, config });
     const child = spawnImpl(config.native.command, args, {
       cwd: config.native.cwd,
       env: nativeEnvironment(config),

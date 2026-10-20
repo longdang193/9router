@@ -9,6 +9,7 @@ Chat Completions request into one bounded native `codex exec` invocation.
 - `GET /v1/models` exposes only aliases configured in
   `CGW_SHIM_MODEL_ALIASES_JSON`.
 - `POST /v1/chat/completions` accepts exactly one non-empty `user` message.
+- `reasoning_effort` optionally accepts `low`, `medium`, or `high` and overrides native Codex for that request.
 - `stream: true` returns buffered compatibility SSE; it is not live token
   streaming.
 - Tools, system messages, multi-turn context, images, audio, and response-format
