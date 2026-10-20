@@ -50,6 +50,10 @@ function processSSEMessage(msg, state) {
     }
   } else if (eventType === "response.failed") {
     state.status = "failed";
+    state.error = parsed.response?.error || parsed.error || null;
+  } else if (eventType === "error" || parsed.type === "error" || parsed.error) {
+    state.status = "failed";
+    state.error = parsed.error || parsed;
   }
 }
 
@@ -112,6 +116,7 @@ export async function convertResponsesStreamToJson(stream) {
     created_at: state.created,
     status: state.status || "completed",
     output,
-    usage: state.usage
+    usage: state.usage,
+    ...(state.error ? { error: state.error } : {})
   };
 }

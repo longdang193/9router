@@ -72,8 +72,10 @@ export function createResponsesApiTransformStream(logger = null) {
     funcCallIds: {},
     funcArgsDone: {},
     funcItemDone: {},
+    responseOutput: [],
     buffer: "",
-    completedSent: false
+    completedSent: false,
+    errorSeen: false
   };
 
   const encoder = new TextEncoder();
@@ -81,6 +83,13 @@ export function createResponsesApiTransformStream(logger = null) {
   
   const emit = (controller, eventType, data) => {
     data.sequence_number = nextSeq();
+    if (
+      (eventType === "response.output_item.added" || eventType === "response.output_item.done") &&
+      Number.isInteger(Number(data.output_index)) &&
+      data.item
+    ) {
+      state.responseOutput[Number(data.output_index)] = data.item;
+    }
     const output = `event: ${eventType}\ndata: ${JSON.stringify(data)}\n\n`;
     logger?.logOutput(output.trim());
     controller.enqueue(encoder.encode(output));
@@ -223,7 +232,7 @@ export function createResponsesApiTransformStream(logger = null) {
   };
 
   const sendCompleted = (controller) => {
-    if (!state.completedSent) {
+    if (!state.completedSent && !state.errorSeen) {
       state.completedSent = true;
       emit(controller, "response.completed", {
         type: "response.completed",
@@ -233,7 +242,8 @@ export function createResponsesApiTransformStream(logger = null) {
           created_at: state.created,
           status: "completed",
           background: false,
-          error: null
+          error: null,
+          output: state.responseOutput.filter(Boolean)
         }
       });
     }
@@ -261,6 +271,14 @@ export function createResponsesApiTransformStream(logger = null) {
         try {
           parsed = JSON.parse(dataStr);
         } catch {
+          continue;
+        }
+
+        const eventMatch = msg.match(/^event:\s*(\S+)$/m);
+        const eventType = eventMatch?.[1] || parsed.type;
+        if (eventType === "error" || parsed.type === "error" || parsed.error) {
+          state.errorSeen = true;
+          emit(controller, "error", parsed);
           continue;
         }
 
