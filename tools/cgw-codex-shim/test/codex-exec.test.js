@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { buildCodexArgs, parseCodexEventLine, runCodexTurn, terminateProcessTree } from "../codexExec.js";
 
 const config = {
@@ -31,13 +34,13 @@ function fakeChild() {
 
 test("builds an argument array without shell interpolation", () => {
   const args = buildCodexArgs({ model: "native-test", prompt: "hello; do not execute", config });
-  assert.deepEqual(args.slice(0, 13), [
+  assert.deepEqual(args.slice(0, 15), [
     "exec", "--json", "--sandbox", "read-only", "--skip-git-repo-check", "-m", "native-test",
     "-c", 'model_provider="9router"', "-c", 'model_providers.9router.base_url="http://127.0.0.1:20128/v1"',
-    "-c", 'model_providers.9router.wire_api="responses"',
+    "-c", 'model_providers.9router.wire_api="responses"', "-c", 'model_providers.9router.env_key="OPENAI_API_KEY"',
   ]);
   assert.equal(args.at(-2), "--ephemeral");
-  assert.equal(args.at(-1), "hello; do not execute");
+  assert.equal(args.at(-1), "-");
 });
 
 test("passes the requested reasoning effort as a native config override", () => {
@@ -66,6 +69,66 @@ test("requires terminal completion and a final assistant message", async () => {
     },
   });
   assert.deepEqual(await resultPromise, { text: "hello back", dispatchStarted: true, terminalEvent: true });
+});
+
+test("passes the prompt through stdin instead of the Windows command line", async () => {
+  const child = fakeChild();
+  let stdinText = "";
+  child.stdin = {
+    write: (value) => { stdinText += value; },
+    end: (value) => { if (value) stdinText += value; },
+  };
+  const resultPromise = runCodexTurn({
+    config,
+    model: "native-test",
+    prompt: "a long prompt",
+    spawnImpl: () => {
+      queueMicrotask(() => {
+        child.stdout.emit("data", Buffer.from('{"type":"item.completed","item":{"type":"agent_message","text":"ok"}}\n'));
+        child.stdout.emit("data", Buffer.from('{"type":"turn.completed"}\n'));
+        child.emit("close", 0, null);
+      });
+      return child;
+    },
+  });
+  await resultPromise;
+  assert.equal(stdinText, "a long prompt");
+});
+
+test("loads the native API key from the configured env file", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "cgw-codex-shim-key-"));
+  const keyFile = join(directory, "tokenpilot.env");
+  writeFileSync(keyFile, "OPENAI_API_KEY=local-test-key\n", "utf8");
+  const child = fakeChild();
+  let childEnvironment;
+  child.stdin = { end: () => {} };
+  const inheritedApiKey = process.env.OPENAI_API_KEY;
+  delete process.env.OPENAI_API_KEY;
+  try {
+    const resultPromise = runCodexTurn({
+      config: {
+        ...config,
+        native: { ...config.native, apiKeyFile: keyFile },
+      },
+      model: "native-test",
+      prompt: "hello",
+      spawnImpl: (_command, _args, options) => {
+        childEnvironment = options.env;
+        queueMicrotask(() => {
+          child.stdout.emit("data", Buffer.from('{"type":"item.completed","item":{"type":"agent_message","text":"ok"}}\n'));
+          child.stdout.emit("data", Buffer.from('{"type":"turn.completed"}\n'));
+          child.emit("close", 0, null);
+        });
+        return child;
+      },
+    });
+    await resultPromise;
+    assert.equal(childEnvironment.OPENAI_API_KEY, "local-test-key");
+  } finally {
+    if (inheritedApiKey === undefined) delete process.env.OPENAI_API_KEY;
+    else process.env.OPENAI_API_KEY = inheritedApiKey;
+    rmSync(directory, { recursive: true, force: true });
+  }
 });
 
 test("rejects a process that exits without turn.completed", async () => {

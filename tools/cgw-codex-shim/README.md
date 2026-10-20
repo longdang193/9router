@@ -13,7 +13,11 @@ Chat Completions request into one bounded native `codex exec` invocation.
 - `stream: true` returns buffered compatibility SSE; it is not live token
   streaming.
 - Tools, system messages, multi-turn context, images, audio, and response-format
-  options are rejected before native dispatch.
+  options are rejected before native dispatch by default. Set
+  `CGW_SHIM_NATIVE_AGENT_COMPATIBILITY=true` only for clients that send
+  text-only agent context to a nested native Codex executor; message context is
+  flattened and tool declarations are accepted and ignored, not translated
+  into OpenAI tool calls.
 - The service binds only to loopback and requires a dedicated bearer key.
 - Native success requires both `turn.completed` and a final assistant message.
 - Native failures after dispatch include `x-9router-no-replay: 1` as an advisory
@@ -46,15 +50,24 @@ CGW_SHIM_CODEX_MODEL_PROVIDER=9router
 CGW_SHIM_CODEX_WIRE_API=responses
 CGW_SHIM_CODEX_SANDBOX=read-only
 CGW_SHIM_CODEX_EPHEMERAL=true
+# Optional file containing OPENAI_API_KEY for the nested native Codex call.
+CGW_SHIM_CODEX_API_KEY_FILE=C:\Users\you\.codex\tokenpilot.env
+# Optional compatibility for DeepAgents web profiles whose request includes
+# text-only context and tool declarations while native Codex owns execution.
+CGW_SHIM_NATIVE_AGENT_COMPATIBILITY=true
 ```
 
 Optional `CGW_SHIM_CODEX_HOME` selects the already authenticated native Codex
 home for the process. The value is read at runtime and is never written to the
-repository. Use the existing authenticated session only for an explicitly
-approved local smoke test.
+repository. The shim also binds the configured native provider to
+`OPENAI_API_KEY`; custom Codex providers do not infer that environment key from
+the process automatically. For direct Codex chats using the same provider,
+configure `env_key = "OPENAI_API_KEY"` under `[model_providers.9router]` and
+restart Codex after changing the user environment. Use the existing
+authenticated session only for an explicitly approved local smoke test.
 
 The default limits are bounded and can be overridden with
-`CGW_SHIM_MAX_BODY_BYTES`, `CGW_SHIM_MAX_CONCURRENT`, `CGW_SHIM_MAX_QUEUE`,
+`CGW_SHIM_MAX_BODY_BYTES` (default 1 MiB for agent tool payloads), `CGW_SHIM_MAX_CONCURRENT`, `CGW_SHIM_MAX_QUEUE`,
 `CGW_SHIM_TIMEOUT_MS`, `CGW_SHIM_MAX_OUTPUT_BYTES`, and
 `CGW_SHIM_TERMINATION_GRACE_MS`.
 

@@ -52,6 +52,11 @@ test("loads fail-closed loopback configuration", () => {
   assert.equal(config.native.shell, false);
 });
 
+test("defaults the body limit above typical agent tool payloads", () => {
+  const config = loadConfig(baseEnv);
+  assert.ok(config.limits.maxBodyBytes >= 1024 * 1024);
+});
+
 test("rejects non-loopback binds and missing dedicated keys", () => {
   assert.throws(() => loadConfig({ ...baseEnv, CGW_SHIM_HOST: "0.0.0.0" }), /loopback/);
   const { CGW_SHIM_API_KEY: _, ...withoutKey } = baseEnv;
@@ -71,4 +76,15 @@ test("parses bounded numeric settings", () => {
   assert.equal(config.limits.maxQueue, 3);
   assert.equal(config.limits.timeoutMs, 5000);
   assert.throws(() => loadConfig({ ...baseEnv, CGW_SHIM_TIMEOUT_MS: "0" }), /TIMEOUT/i);
+});
+
+test("allows explicit native-agent compatibility mode", () => {
+  const config = loadConfig({ ...baseEnv, CGW_SHIM_NATIVE_AGENT_COMPATIBILITY: "true" });
+  assert.equal(config.compatibility.nativeAgent, true);
+  assert.equal(loadConfig(baseEnv).compatibility.nativeAgent, false);
+});
+
+test("keeps the native API key file path in runtime configuration", () => {
+  const config = loadConfig({ ...baseEnv, CGW_SHIM_CODEX_API_KEY_FILE: "C:/codex/tokenpilot.env" });
+  assert.equal(config.native.apiKeyFile, "C:/codex/tokenpilot.env");
 });

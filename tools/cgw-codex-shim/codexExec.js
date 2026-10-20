@@ -1,4 +1,5 @@
 import { execFile as nodeExecFile, spawn as nodeSpawn } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { promisify } from "node:util";
 
 const execFile = promisify(nodeExecFile);
@@ -23,10 +24,12 @@ export function buildCodexArgs({ model, prompt, reasoningEffort, config }) {
     `model_providers.${providerKey}.base_url=${tomlString(config.native.baseUrl)}`,
     "-c",
     `model_providers.${providerKey}.wire_api=${tomlString(config.native.wireApi)}`,
+    "-c",
+    `model_providers.${providerKey}.env_key=${tomlString("OPENAI_API_KEY")}`,
   ];
   if (reasoningEffort) args.push("-c", `model_reasoning_effort=${tomlString(reasoningEffort)}`);
   if (config.native.ephemeral) args.push("--ephemeral");
-  args.push(prompt);
+  args.push("-");
   return args;
 }
 
@@ -45,11 +48,22 @@ function nativeEnvironment(config) {
     "PATH", "Path", "PATHEXT", "SystemRoot", "WINDIR", "TEMP", "TMP",
     "USERPROFILE", "APPDATA", "LOCALAPPDATA", "HOME", "HTTP_PROXY",
     "HTTPS_PROXY", "NO_PROXY", "ALL_PROXY", "SSL_CERT_FILE", "SSL_CERT_DIR",
-    "LANG", "LC_ALL",
+    "LANG", "LC_ALL", "OPENAI_API_KEY", "CODEX_API_KEY",
   ];
   const env = {};
   for (const name of names) {
     if (process.env[name] !== undefined) env[name] = process.env[name];
+  }
+  if (!env.OPENAI_API_KEY && config.native.apiKeyFile) {
+    try {
+      const line = readFileSync(config.native.apiKeyFile, "utf8")
+        .split(/\r?\n/)
+        .find((candidate) => /^\s*OPENAI_API_KEY\s*=/.test(candidate));
+      const value = line?.replace(/^\s*OPENAI_API_KEY\s*=\s*/, "").trim();
+      if (value) env.OPENAI_API_KEY = value.replace(/^(["'])(.*)\1$/, "$2");
+    } catch (error) {
+      if (error?.code !== "ENOENT") throw error;
+    }
   }
   if (config.native.codexHome) env.CODEX_HOME = config.native.codexHome;
   return env;
@@ -105,8 +119,10 @@ export function runCodexTurn({
       env: nativeEnvironment(config),
       shell: false,
       windowsHide: true,
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: ["pipe", "pipe", "pipe"],
     });
+
+    child.stdin?.end(prompt);
 
     let settled = false;
     let terminalEvent = false;

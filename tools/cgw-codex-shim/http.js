@@ -24,16 +24,37 @@ function parseReasoningEffort(value) {
   return value;
 }
 
-export function validateChatRequest(body, modelAliases) {
+function plainTextContent(content) {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) throw new Error("message content must be plain text");
+  const parts = content.map((part) => {
+    if (typeof part === "string") return part;
+    if (part && typeof part === "object" && part.type === "text" && typeof part.text === "string") return part.text;
+    throw new Error("message content must be plain text");
+  });
+  return parts.join("");
+}
+
+export function validateChatRequest(body, modelAliases, { compatibilityMode = false } = {}) {
   if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("request body must be an object");
-  if (body.tools !== undefined || body.tool_choice !== undefined) throw new Error("tools are not supported");
+  if (!compatibilityMode && (body.tools !== undefined || body.tool_choice !== undefined)) throw new Error("tools are not supported");
   if (body.response_format !== undefined || body.modalities !== undefined || body.audio !== undefined) throw new Error("multimodal and response-format options are not supported");
   if (typeof body.model !== "string" || !modelAliases[body.model]) throw new Error("unknown model alias");
-  if (!Array.isArray(body.messages) || body.messages.length !== 1) throw new Error("exactly one user message is supported");
-  const [message] = body.messages;
-  if (message?.role !== "user") throw new Error("only one user message is supported");
-  if (typeof message.content !== "string" || !message.content.trim()) throw new Error("message content must be plain text");
-  const result = { model: modelAliases[body.model], prompt: message.content };
+  if (!Array.isArray(body.messages) || !body.messages.length) throw new Error("at least one message is supported");
+  if (!compatibilityMode && body.messages.length !== 1) throw new Error("exactly one user message is supported");
+  const messages = body.messages.map((message) => {
+    if (!message || !["user", "system", "developer", "assistant", "tool"].includes(message.role)) {
+      throw new Error(compatibilityMode ? "unsupported message role" : "only one user message is supported");
+    }
+    if (!compatibilityMode && message.role !== "user") throw new Error("only one user message is supported");
+    const content = plainTextContent(message.content);
+    if (!content.trim()) throw new Error("message content must be plain text");
+    return { role: message.role, content };
+  });
+  const prompt = compatibilityMode
+    ? messages.map(({ role, content }) => `[${role}]\n${content}`).join("\n\n")
+    : messages[0].content;
+  const result = { model: modelAliases[body.model], prompt };
   if (body.reasoning_effort !== undefined) result.reasoningEffort = parseReasoningEffort(body.reasoning_effort);
   return result;
 }

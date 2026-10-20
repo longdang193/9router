@@ -32,6 +32,22 @@ test("rejects unsupported roles, tools, and multimodal content", () => {
   assert.throws(() => validateChatRequest({ model: "gpt-test", messages: [{ role: "user", content: [{ type: "image_url" }] }] }, { "gpt-test": "native-test" }), /text/);
 });
 
+test("flattens text-only agent context in explicit compatibility mode", () => {
+  const result = validateChatRequest({
+    model: "gpt-test",
+    tools: [{ type: "function", function: { name: "read_file" } }],
+    tool_choice: "auto",
+    messages: [
+      { role: "system", content: [{ type: "text", text: "system" }] },
+      { role: "user", content: "hello" },
+    ],
+  }, { "gpt-test": "native-test" }, { compatibilityMode: true });
+  assert.deepEqual(result, {
+    model: "native-test",
+    prompt: "[system]\nsystem\n\n[user]\nhello",
+  });
+});
+
 test("parses bearer authentication without accepting malformed values", () => {
   assert.equal(parseBearerToken("Bearer secret"), "secret");
   assert.equal(parseBearerToken("Basic secret"), null);

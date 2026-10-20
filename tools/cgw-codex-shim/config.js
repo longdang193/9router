@@ -64,8 +64,15 @@ export function loadConfig(env = process.env) {
     port,
     apiKey,
     modelAliases,
+    compatibility: {
+      nativeAgent: booleanValue(
+        env.CGW_SHIM_NATIVE_AGENT_COMPATIBILITY,
+        "CGW_SHIM_NATIVE_AGENT_COMPATIBILITY",
+        false,
+      ),
+    },
     limits: {
-      maxBodyBytes: positiveInteger(env.CGW_SHIM_MAX_BODY_BYTES ?? "65536", "CGW_SHIM_MAX_BODY_BYTES"),
+      maxBodyBytes: positiveInteger(env.CGW_SHIM_MAX_BODY_BYTES ?? String(1024 * 1024), "CGW_SHIM_MAX_BODY_BYTES"),
       maxConcurrent: positiveInteger(env.CGW_SHIM_MAX_CONCURRENT ?? "1", "CGW_SHIM_MAX_CONCURRENT"),
       maxQueue: positiveInteger(env.CGW_SHIM_MAX_QUEUE ?? "8", "CGW_SHIM_MAX_QUEUE", { allowZero: true }),
       timeoutMs: positiveInteger(env.CGW_SHIM_TIMEOUT_MS ?? "120000", "CGW_SHIM_TIMEOUT_MS"),
@@ -81,6 +88,7 @@ export function loadConfig(env = process.env) {
       wireApi: String(env.CGW_SHIM_CODEX_WIRE_API || "responses").trim(),
       sandbox: String(env.CGW_SHIM_CODEX_SANDBOX || "read-only").trim(),
       ephemeral: booleanValue(env.CGW_SHIM_CODEX_EPHEMERAL, "CGW_SHIM_CODEX_EPHEMERAL", true),
+      apiKeyFile: String(env.CGW_SHIM_CODEX_API_KEY_FILE || "").trim() || null,
       shell: false,
     },
   };

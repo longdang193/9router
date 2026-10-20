@@ -117,7 +117,9 @@ export function createRequestHandler({ config, executeTurn }) {
 
     let requestInfo;
     try {
-      requestInfo = validateChatRequest(body, config.modelAliases);
+      requestInfo = validateChatRequest(body, config.modelAliases, {
+        compatibilityMode: config.compatibility?.nativeAgent === true,
+      });
     } catch (error) {
       writeJson(response, { error: { message: error.message, type: "invalid_request_error" } }, 400);
       return;
