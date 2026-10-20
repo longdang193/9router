@@ -8,15 +8,15 @@ import { loadEnvFileIntoProcess } from "../env.js";
 
 const baseEnv = {
   CGW_SHIM_API_KEY: "test-key",
-  CGW_SHIM_MODEL_ALIASES_JSON: JSON.stringify({ "gpt-test": "native-test" }),
+  CGW_SHIM_MODEL_ALIASES_JSON: JSON.stringify({ "gpt-test": "codex/native-test" }),
   CGW_SHIM_CODEX_BIN: "C:/codex.exe",
   CGW_SHIM_CODEX_BASE_URL: "http://127.0.0.1:20128/v1",
 };
 
 test("parses deterministic model aliases", () => {
-  assert.deepEqual(parseModelAliases('{"gpt-a":"native-a","gpt-b":"native-b"}'), {
+  assert.deepEqual(parseModelAliases('{"gpt-a":"native-a","gpt-b":"codex/native-b"}'), {
     "gpt-a": "native-a",
-    "gpt-b": "native-b",
+    "gpt-b": "codex/native-b",
   });
 });
 
@@ -47,7 +47,7 @@ test("loads fail-closed loopback configuration", () => {
   const config = loadConfig(baseEnv);
   assert.equal(config.host, "127.0.0.1");
   assert.equal(config.apiKey, "test-key");
-  assert.deepEqual(config.modelAliases, { "gpt-test": "native-test" });
+  assert.deepEqual(config.modelAliases, { "gpt-test": "codex/native-test" });
   assert.equal(config.native.baseUrl, "http://127.0.0.1:20128/v1");
   assert.equal(config.native.shell, false);
 });

@@ -37,7 +37,9 @@ The equivalent variables are:
 CGW_SHIM_HOST=127.0.0.1
 CGW_SHIM_PORT=20129
 CGW_SHIM_API_KEY=use-a-dedicated-local-key
-CGW_SHIM_MODEL_ALIASES_JSON={"gpt-6.1-sol":"gpt-6.1-sol","gpt-5.6-sol":"gpt-5.6-sol"}
+# Keep the public aliases stable, but qualify native targets so 9router routes
+# through its Codex OAuth provider instead of inferring the OpenAI API provider.
+CGW_SHIM_MODEL_ALIASES_JSON={"gpt-6.1-sol":"codex/gpt-6.1-sol","gpt-5.6-sol":"codex/gpt-5.6-sol"}
 CGW_SHIM_CODEX_BIN=codex
 CGW_SHIM_CODEX_BASE_URL=http://127.0.0.1:20128/v1
 CGW_SHIM_CODEX_MODEL_PROVIDER=9router
