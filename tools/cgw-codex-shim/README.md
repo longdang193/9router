@@ -13,7 +13,8 @@ Completions request into one direct CGW Responses request.
   the per-request Responses `reasoning.effort` value.
 - `stream: true` returns buffered compatibility SSE; it is not live token
   streaming.
-- Tools, system messages, multi-turn context, images, audio, and response-format
+- Client tool declarations are ignored because CGW Chat is text-only; tools are never
+  executed. System messages, multi-turn context, images, audio, and response-format
   options are rejected before dispatch.
 - The service binds only to loopback and requires a dedicated local bearer key.
 - CGW inference is performed directly against its local `/v1/responses` bridge;

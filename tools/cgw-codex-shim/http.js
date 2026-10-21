@@ -26,7 +26,6 @@ function parseReasoningEffort(value) {
 
 export function validateChatRequest(body, modelAliases) {
   if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("request body must be an object");
-  if (body.tools !== undefined || body.tool_choice !== undefined) throw new Error("tools are not supported");
   if (body.response_format !== undefined || body.modalities !== undefined || body.audio !== undefined) throw new Error("multimodal and response-format options are not supported");
   if (typeof body.model !== "string" || !modelAliases[body.model]) throw new Error("unknown model alias");
   if (!Array.isArray(body.messages) || body.messages.length !== 1) throw new Error("exactly one user message is supported");
@@ -34,6 +33,7 @@ export function validateChatRequest(body, modelAliases) {
   if (message?.role !== "user") throw new Error("only one user message is supported");
   if (typeof message.content !== "string" || !message.content.trim()) throw new Error("message content must be plain text");
   const result = { model: modelAliases[body.model], prompt: message.content };
+  if (body.tools !== undefined || body.tool_choice !== undefined) result.toolsIgnored = true;
   if (body.reasoning_effort !== undefined) result.reasoningEffort = parseReasoningEffort(body.reasoning_effort);
   return result;
 }
