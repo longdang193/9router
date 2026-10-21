@@ -1,4 +1,4 @@
-import { runCodexTurn } from "./codexExec.js";
+import { runCgwTurn } from "./cgwResponses.js";
 import { loadConfig } from "./config.js";
 import { startServer } from "./server.js";
 
@@ -11,7 +11,7 @@ async function main() {
   const config = loadConfig();
   const runtime = await startServer({
     config,
-    executeTurn: (request) => runCodexTurn({ config, ...request }),
+    executeTurn: (request) => runCgwTurn({ config, ...request }),
   });
   let shutdownPromise;
 
@@ -22,7 +22,7 @@ async function main() {
 
   process.once("SIGINT", () => { void shutdown(); });
   process.once("SIGTERM", () => { void shutdown(); });
-  console.log(`CGW Codex shim listening at ${formatAddress(runtime.address)}`);
+  console.log(`CGW Chat shim listening at ${formatAddress(runtime.address)}`);
 }
 
 main().catch((error) => {

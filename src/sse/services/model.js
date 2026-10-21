@@ -1,5 +1,5 @@
 // Re-export from open-sse with localDb integration
-import { getModelAliases, getComboByName, getProviderNodes } from "@/lib/localDb";
+import { getModelAliases, getComboByName, getProviderNodes, getProviderConnections } from "@/lib/localDb";
 import { parseModel as parseModelCore, resolveModelAliasFromMap, getModelInfoCore } from "open-sse/services/model.js";
 import REGISTRY from "open-sse/providers/registry/index.js";
 
@@ -14,6 +14,24 @@ for (const entry of REGISTRY) {
   RESERVED_PROVIDER_PREFIXES.add(entry.id);
   if (entry.alias) RESERVED_PROVIDER_PREFIXES.add(entry.alias);
   for (const alias of entry.aliases || []) RESERVED_PROVIDER_PREFIXES.add(alias);
+}
+
+async function resolveCompatibleNode(prefix, type) {
+  const nodes = await getProviderNodes({ type });
+  const matches = nodes.filter((node) => node.prefix === prefix);
+  if (matches.length <= 1) return matches[0] || null;
+
+  const activeConnections = await getProviderConnections({ isActive: true });
+  const validatedMatches = matches.filter((node) => activeConnections.some(
+    (connection) => connection.provider === node.id && connection.testStatus === "active"
+  ));
+  if (validatedMatches.length === 1) return validatedMatches[0];
+
+  const providerNames = matches.map((node) => `${node.name || node.id} (${node.id})`).join(", ");
+  throw new Error(
+    `Ambiguous compatible provider prefix '${prefix}' for ${type}; ` +
+    `validated active matches: ${validatedMatches.length}; candidates: ${providerNames}`
+  );
 }
 
 export function parseModel(modelStr) {
@@ -42,20 +60,17 @@ export async function getModelInfo(modelStr) {
     // Provider-node prefixes are user-defined. They must not override built-in
     // provider ids/aliases such as `cf`, `cloudflare-ai`, `openai`, or `hf`.
     if (!RESERVED_PROVIDER_PREFIXES.has(parsed.providerAlias)) {
-      const openaiNodes = await getProviderNodes({ type: "openai-compatible" });
-      const matchedOpenAI = openaiNodes.find((node) => node.prefix === parsed.providerAlias);
+      const matchedOpenAI = await resolveCompatibleNode(parsed.providerAlias, "openai-compatible");
       if (matchedOpenAI) {
         return { provider: matchedOpenAI.id, model: parsed.model };
       }
 
-      const anthropicNodes = await getProviderNodes({ type: "anthropic-compatible" });
-      const matchedAnthropic = anthropicNodes.find((node) => node.prefix === parsed.providerAlias);
+      const matchedAnthropic = await resolveCompatibleNode(parsed.providerAlias, "anthropic-compatible");
       if (matchedAnthropic) {
         return { provider: matchedAnthropic.id, model: parsed.model };
       }
 
-      const embeddingNodes = await getProviderNodes({ type: "custom-embedding" });
-      const matchedEmbedding = embeddingNodes.find((node) => node.prefix === parsed.providerAlias);
+      const matchedEmbedding = await resolveCompatibleNode(parsed.providerAlias, "custom-embedding");
       if (matchedEmbedding) {
         return { provider: matchedEmbedding.id, model: parsed.model };
       }

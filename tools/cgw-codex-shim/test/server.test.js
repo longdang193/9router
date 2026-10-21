@@ -7,9 +7,9 @@ function testConfig(overrides = {}) {
     host: "127.0.0.1",
     port: 0,
     apiKey: "test-key",
-    modelAliases: { "gpt-test": "native-test" },
+    modelAliases: { "gpt-test": "gpt-test" },
     limits: { maxBodyBytes: 64 * 1024, maxConcurrent: 1, maxQueue: 2, timeoutMs: 1000 },
-    native: { shell: false, baseUrl: "http://127.0.0.1:20128/v1" },
+    cgw: { baseUrl: "http://127.0.0.1:17841/v1", bearerFile: null },
     ...overrides,
   };
 }
@@ -39,7 +39,7 @@ test("lists only configured aliases and requires auth", async () => {
 
 test("returns a non-stream chat completion", async () => {
   await withServer(async ({ model, prompt }) => {
-    assert.equal(model, "native-test");
+    assert.equal(model, "gpt-test");
     assert.equal(prompt, "hello");
     return { text: "hello back", dispatchStarted: true };
   }, async (baseUrl) => {
@@ -55,7 +55,7 @@ test("returns a non-stream chat completion", async () => {
   });
 });
 
-test("passes reasoning effort through to native execution", async () => {
+test("passes reasoning effort through to CGW execution", async () => {
   await withServer(async ({ reasoningEffort }) => {
     assert.equal(reasoningEffort, "high");
     return { text: "reasoned", dispatchStarted: true };
@@ -100,9 +100,9 @@ test("rejects context and multimodal input before execution", async () => {
   });
 });
 
-test("marks native failures as non-replayable after dispatch", async () => {
+test("marks CGW failures as non-replayable after dispatch", async () => {
   await withServer(async () => {
-    const error = new Error("native failed");
+    const error = new Error("CGW failed");
     error.dispatchStarted = true;
     throw error;
   }, async (baseUrl) => {
