@@ -56,6 +56,22 @@ test("returns a non-stream chat completion", async () => {
   });
 });
 
+test("accepts native sub-agent context above the legacy 64 KiB budget", async () => {
+  const prompt = "x".repeat(70 * 1024);
+  await withServer(async ({ prompt: receivedPrompt }) => {
+    assert.equal(receivedPrompt, prompt);
+    return { text: "ok", dispatchStarted: true };
+  }, async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/v1/chat/completions`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({ model: "gpt-test", messages: [{ role: "user", content: prompt }] }),
+    });
+
+    assert.equal(response.status, 200);
+  }, testConfig({ limits: { maxBodyBytes: 1024 * 1024, maxConcurrent: 1, maxQueue: 1, timeoutMs: 1000 } }));
+});
+
 test("passes reasoning effort through to CGW execution", async () => {
   await withServer(async ({ reasoningEffort }) => {
     assert.equal(reasoningEffort, "high");

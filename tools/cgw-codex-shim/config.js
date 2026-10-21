@@ -1,6 +1,8 @@
 import "./env.js";
 
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "::1", "localhost"]);
+const DEFAULT_MAX_BODY_BYTES = 1024 * 1024;
+const DEFAULT_CGW_TIMEOUT_MS = 600000;
 
 function positiveInteger(value, name, { allowZero = false } = {}) {
   const number = Number(value);
@@ -76,10 +78,10 @@ export function loadConfig(env = process.env) {
     apiKey,
     modelAliases,
     limits: {
-      maxBodyBytes: positiveInteger(env.CGW_SHIM_MAX_BODY_BYTES ?? "65536", "CGW_SHIM_MAX_BODY_BYTES"),
+      maxBodyBytes: positiveInteger(env.CGW_SHIM_MAX_BODY_BYTES ?? String(DEFAULT_MAX_BODY_BYTES), "CGW_SHIM_MAX_BODY_BYTES"),
       maxConcurrent: positiveInteger(env.CGW_SHIM_MAX_CONCURRENT ?? "1", "CGW_SHIM_MAX_CONCURRENT"),
       maxQueue: positiveInteger(env.CGW_SHIM_MAX_QUEUE ?? "8", "CGW_SHIM_MAX_QUEUE", { allowZero: true }),
-      timeoutMs: positiveInteger(env.CGW_SHIM_TIMEOUT_MS ?? "120000", "CGW_SHIM_TIMEOUT_MS"),
+      timeoutMs: positiveInteger(env.CGW_SHIM_TIMEOUT_MS ?? String(DEFAULT_CGW_TIMEOUT_MS), "CGW_SHIM_TIMEOUT_MS"),
       maxOutputBytes: positiveInteger(env.CGW_SHIM_MAX_OUTPUT_BYTES ?? "2097152", "CGW_SHIM_MAX_OUTPUT_BYTES"),
       terminationGraceMs: positiveInteger(env.CGW_SHIM_TERMINATION_GRACE_MS ?? "1500", "CGW_SHIM_TERMINATION_GRACE_MS"),
     },
