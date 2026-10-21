@@ -106,19 +106,32 @@ test("returns valid buffered SSE", async () => {
   });
 });
 
-test("rejects context and multimodal input before execution", async () => {
+test("accepts text context but rejects multimodal input before execution", async () => {
   let calls = 0;
-  await withServer(async () => { calls += 1; return { text: "bad", dispatchStarted: true }; }, async (baseUrl) => {
-    const response = await fetch(`${baseUrl}/v1/chat/completions`, {
+  let prompt;
+  await withServer(async ({ prompt: receivedPrompt }) => {
+    calls += 1;
+    prompt = receivedPrompt;
+    return { text: "ok", dispatchStarted: true };
+  }, async (baseUrl) => {
+    const contextResponse = await fetch(`${baseUrl}/v1/chat/completions`, {
       method: "POST",
       headers: headers(),
       body: JSON.stringify({ model: "gpt-test", messages: [
-        { role: "user", content: "old" },
-        { role: "user", content: "new" },
+        { role: "system", content: "Follow the contract." },
+        { role: "user", content: "Reply with ok." },
       ] }),
     });
-    assert.equal(response.status, 400);
-    assert.equal(calls, 0);
+    assert.equal(contextResponse.status, 200);
+    assert.equal(prompt, "[system]\nFollow the contract.\n\n[user]\nReply with ok.");
+
+    const multimodalResponse = await fetch(`${baseUrl}/v1/chat/completions`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({ model: "gpt-test", messages: [{ role: "user", content: [{ type: "image_url", image_url: "https://example.test/image.png" }] }] }),
+    });
+    assert.equal(multimodalResponse.status, 400);
+    assert.equal(calls, 1);
   });
 });
 

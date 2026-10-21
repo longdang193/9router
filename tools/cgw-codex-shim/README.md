@@ -1,21 +1,25 @@
 # CGW Chat Shim
 
 This directory contains a loopback-only OpenAI-compatible adapter for the
-installed CGW runtime. It translates one plain-text, single-turn Chat
-Completions request into one direct CGW Responses request.
+installed CGW runtime. It translates plain-text Chat Completions requests into
+one direct CGW Responses request.
 
 ## Scope
 
 - `GET /v1/models` exposes only aliases configured in
   `CGW_SHIM_MODEL_ALIASES_JSON`.
-- `POST /v1/chat/completions` accepts exactly one non-empty `user` message.
-- `reasoning_effort` accepts `low`, `medium`, or `high` and is sent to CGW as
-  the per-request Responses `reasoning.effort` value.
+- `POST /v1/chat/completions` accepts one or more non-empty plain-text messages;
+  a single `user` message is passed unchanged and interactive multi-message
+  context is flattened into one labeled CGW prompt.
+- `reasoning_effort` accepts `low`, `medium`, or `high`. The public `low` value
+  is translated to CGW's `instant` Responses effort; `medium` and `high` are
+  passed through unchanged.
 - `stream: true` returns buffered compatibility SSE; it is not live token
   streaming.
 - Client tool declarations are ignored because CGW Chat is text-only; tools are never
-  executed. System messages, multi-turn context, images, audio, and response-format
-  options are rejected before dispatch.
+  executed. Text-only system, developer, user, assistant, tool, and function
+  messages are flattened before dispatch; images, audio, and response-format
+  options are rejected.
 - The service binds only to loopback and requires a dedicated local bearer key.
 - CGW inference is performed directly against its local `/v1/responses` bridge;
   it never launches `codex exec` and never routes CGW aliases through 9Router's

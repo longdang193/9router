@@ -2,12 +2,37 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { validateChatRequest, parseBearerToken, readJsonBody } from "../http.js";
 
-test("accepts exactly one plain user message", () => {
+test("accepts one plain user message", () => {
   const result = validateChatRequest({
     model: "gpt-test",
     messages: [{ role: "user", content: "hello" }],
   }, { "gpt-test": "chatgpt-web/gpt-test" });
   assert.deepEqual(result, { model: "chatgpt-web/gpt-test", prompt: "hello" });
+});
+
+test("flattens interactive multi-message text into one CGW prompt", () => {
+  const result = validateChatRequest({
+    model: "gpt-test",
+    messages: [
+      { role: "system", content: "Follow the review contract." },
+      { role: "user", content: "Reply with CGW_LIVE_PROBE_OK." },
+    ],
+  }, { "gpt-test": "chatgpt-web/gpt-test" });
+  assert.equal(result.prompt, "[system]\nFollow the review contract.\n\n[user]\nReply with CGW_LIVE_PROBE_OK.");
+});
+
+test("flattens text-only content blocks from interactive Codex messages", () => {
+  const result = validateChatRequest({
+    model: "gpt-test",
+    messages: [{
+      role: "user",
+      content: [
+        { type: "input_text", text: "Reply with " },
+        { type: "text", text: "CGW_LIVE_PROBE_OK." },
+      ],
+    }],
+  }, { "gpt-test": "chatgpt-web/gpt-test" });
+  assert.equal(result.prompt, "Reply with CGW_LIVE_PROBE_OK.");
 });
 
 test("accepts only low, medium, and high reasoning effort values", () => {
@@ -41,7 +66,7 @@ test("ignores client tool metadata for text-only CGW reviews", () => {
 });
 
 test("rejects unsupported roles and multimodal content", () => {
-  assert.throws(() => validateChatRequest({ model: "gpt-test", messages: [{ role: "system", content: "x" }] }, { "gpt-test": "chatgpt-web/gpt-test" }), /user message/);
+  assert.throws(() => validateChatRequest({ model: "gpt-test", messages: [{ role: "unknown", content: "x" }] }, { "gpt-test": "chatgpt-web/gpt-test" }), /text message roles/);
   assert.throws(() => validateChatRequest({ model: "gpt-test", messages: [{ role: "user", content: [{ type: "image_url" }] }] }, { "gpt-test": "chatgpt-web/gpt-test" }), /text/);
 });
 

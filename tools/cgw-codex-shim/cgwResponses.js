@@ -89,7 +89,7 @@ export function buildCgwResponseRequest({ baseUrl, bearer, model, prompt, reason
     store: false,
     stream: false,
   };
-  if (reasoningEffort) body.reasoning = { effort: reasoningEffort };
+  if (reasoningEffort) body.reasoning = { effort: mapReasoningEffort(reasoningEffort) };
   return {
     url,
     init: {
@@ -99,6 +99,10 @@ export function buildCgwResponseRequest({ baseUrl, bearer, model, prompt, reason
       signal,
     },
   };
+}
+
+export function mapReasoningEffort(reasoningEffort) {
+  return reasoningEffort === "low" ? "instant" : reasoningEffort;
 }
 
 export function extractResponseText(payload) {

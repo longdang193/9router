@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildCgwResponseRequest, extractResponseText, readBearerToken, resolveBearer, runCgwTurn } from "../cgwResponses.js";
+import { buildCgwResponseRequest, extractResponseText, mapReasoningEffort, readBearerToken, resolveBearer, runCgwTurn } from "../cgwResponses.js";
 import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -30,6 +30,18 @@ test("builds a direct CGW Responses request with the requested model and effort"
   assert.equal(body.store, false);
   assert.equal(body.stream, false);
   assert.deepEqual(body.reasoning, { effort: "high" });
+});
+
+test("maps public low effort to CGW instant effort", () => {
+  assert.equal(mapReasoningEffort("low"), "instant");
+  const request = buildCgwResponseRequest({
+    ...config.cgw,
+    bearer: "cgw-token",
+    model: "chatgpt-web/gpt-6-sol",
+    prompt: "Reply with CGW_OK only.",
+    reasoningEffort: "low",
+  });
+  assert.deepEqual(JSON.parse(request.init.body).reasoning, { effort: "instant" });
 });
 
 test("extracts assistant text from Responses output", () => {

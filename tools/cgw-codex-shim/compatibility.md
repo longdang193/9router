@@ -10,8 +10,8 @@ Recorded on 2026-10-21 (Europe/Berlin) during the direct CGW transport gate.
 | Shim | `tools/cgw-codex-shim/run.js` | Chat Completions compatibility on `http://127.0.0.1:20129` |
 | CGW transport | Direct `POST /v1/responses` | Does not invoke `codex exec` or 9Router Codex provider |
 | Model selection | `gpt-5.6-sol`, `gpt-6.1-sol` | Alias target is sent unchanged to CGW |
-| Thinking override | `reasoning_effort=low|medium|high` | Sent as Responses `reasoning.effort` |
-| Test validation | `POST /api/v1/chat/completions` with `hi` | Requires a real completion and matching returned model |
+| Thinking override | `reasoning_effort=low|medium|high` | `low` becomes Responses `reasoning.effort=instant`; other values pass through |
+| Test validation | `POST /api/v1/chat/completions` with `hi` or an interactive multi-message context | Requires a real completion and matching returned model |
 
 ## Root cause corrected
 
