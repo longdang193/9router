@@ -1,3 +1,4 @@
+import http from "node:http";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { startServer } from "../server.js";
@@ -142,6 +143,49 @@ test("shares concurrency and queue limits across requests", async () => {
     const responses = await Promise.all([first, second]);
     assert.deepEqual(responses.map((response) => response.status), [200, 200]);
     assert.equal((await third).status, 429);
+  }, testConfig({ limits: { maxBodyBytes: 64 * 1024, maxConcurrent: 1, maxQueue: 1, timeoutMs: 1000 } }));
+});
+
+test("removes disconnected requests from the queue before dispatch", async () => {
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  let calls = 0;
+  await withServer(async () => {
+    calls += 1;
+    if (calls === 1) await gate;
+    return { text: "ok", dispatchStarted: true };
+  }, async (baseUrl) => {
+    const request = (signal) => fetch(`${baseUrl}/v1/chat/completions`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({ model: "gpt-test", messages: [{ role: "user", content: "hello" }] }),
+      signal,
+    });
+
+    const first = request();
+    await new Promise((resolve) => setTimeout(resolve, 25));
+
+    const abandoned = http.request(`${baseUrl}/v1/chat/completions`, {
+      method: "POST",
+      headers: headers(),
+    });
+    const abandonedClosed = new Promise((resolve, reject) => {
+      abandoned.once("close", resolve);
+      abandoned.once("error", (error) => {
+        if (error.code !== "ECONNRESET") reject(error);
+      });
+    });
+    abandoned.end(JSON.stringify({ model: "gpt-test", messages: [{ role: "user", content: "hello" }] }));
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    abandoned.destroy();
+    await abandonedClosed;
+
+    release();
+    assert.equal((await first).status, 200);
+
+    const third = request();
+    assert.equal((await third).status, 200);
+    assert.equal(calls, 2);
   }, testConfig({ limits: { maxBodyBytes: 64 * 1024, maxConcurrent: 1, maxQueue: 1, timeoutMs: 1000 } }));
 });
 

@@ -10,13 +10,24 @@ class WorkQueue {
     this.queue = [];
   }
 
-  run(task) {
+  run(task, signal) {
     return new Promise((resolve, reject) => {
-      const item = { task, resolve, reject };
+      const item = { task, resolve, reject, signal, onAbort: null };
       if (this.active < this.maxConcurrent) {
         this.start(item);
       } else if (this.queue.length < this.maxQueue) {
         this.queue.push(item);
+        if (signal) {
+          item.onAbort = () => {
+            const index = this.queue.indexOf(item);
+            if (index === -1) return;
+            this.queue.splice(index, 1);
+            signal.removeEventListener("abort", item.onAbort);
+            reject(signal.reason || new Error("request aborted while queued"));
+          };
+          signal.addEventListener("abort", item.onAbort, { once: true });
+          if (signal.aborted) item.onAbort();
+        }
       } else {
         const error = new Error("native execution queue is full");
         error.statusCode = 429;
@@ -27,6 +38,10 @@ class WorkQueue {
 
   start(item) {
     this.active += 1;
+    if (item.onAbort) {
+      item.signal?.removeEventListener("abort", item.onAbort);
+      item.onAbort = null;
+    }
     Promise.resolve().then(item.task).then(item.resolve, item.reject).finally(() => {
       this.active -= 1;
       const next = this.queue.shift();
@@ -126,8 +141,11 @@ export function createRequestHandler({ config, executeTurn }) {
     const abortController = new AbortController();
     activeControllers.add(abortController);
     const onAborted = () => abortController.abort(new Error("client disconnected"));
+    const onRequestClose = () => { if (!request.complete) onAborted(); };
+    const onResponseClose = () => { if (!response.writableEnded) onAborted(); };
     request.once("aborted", onAborted);
-    request.once("close", () => { if (!request.complete) onAborted(); });
+    request.once("close", onRequestClose);
+    response.once("close", onResponseClose);
     const id = `chatcmpl-${randomUUID()}`;
     try {
       const result = await queue.run(() => executeTurn({
@@ -135,7 +153,7 @@ export function createRequestHandler({ config, executeTurn }) {
         prompt: requestInfo.prompt,
         reasoningEffort: requestInfo.reasoningEffort,
         signal: abortController.signal,
-      }));
+      }), abortController.signal);
       if (response.destroyed) return;
       if (body.stream === true) {
         writeSse(response, { id, model: body.model, text: result.text });
@@ -155,6 +173,8 @@ export function createRequestHandler({ config, executeTurn }) {
     } finally {
       activeControllers.delete(abortController);
       request.off("aborted", onAborted);
+      request.off("close", onRequestClose);
+      response.off("close", onResponseClose);
     }
   };
 

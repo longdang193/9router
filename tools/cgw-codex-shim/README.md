@@ -22,6 +22,8 @@ Completions request into one direct CGW Responses request.
 - A missing CGW bearer fails closed before dispatch. Upstream failures after
   dispatch include `x-9router-no-replay: 1` as an advisory diagnostic for the
   parent 9Router replay policy.
+- Requests that disconnect while waiting in the bounded queue are removed before
+  CGW dispatch, so abandoned retries do not consume native execution capacity.
 
 ## Configuration
 
