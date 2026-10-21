@@ -73,6 +73,15 @@ shim reads the bearer at request time and never logs or returns it.
 The default limits are bounded and can be overridden with
 `CGW_SHIM_MAX_BODY_BYTES`, `CGW_SHIM_MAX_CONCURRENT`, `CGW_SHIM_MAX_QUEUE`,
 `CGW_SHIM_TIMEOUT_MS`, and `CGW_SHIM_TERMINATION_GRACE_MS`.
+The default request-body budget is 1 MiB: it accommodates native sub-agent
+context envelopes while retaining a finite protection against oversized
+requests. Set `CGW_SHIM_MAX_BODY_BYTES` explicitly when a smaller deployment
+budget is required.
+The default CGW request budget is 600 seconds to accommodate slower
+authenticated browser-backed turns. Set `CGW_SHIM_TIMEOUT_MS` explicitly when
+the deployment has a tighter provider deadline. A timeout after dispatch is
+reported as non-replayable; do not retry until the original attempt is
+retired and its outcome is reconciled.
 
 ## Checks
 

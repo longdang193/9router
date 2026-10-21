@@ -53,6 +53,18 @@ test("loads fail-closed loopback configuration", () => {
   assert.equal(config.cgw.bearerFile, "C:/cgw-bearer.env");
 });
 
+test("defaults to a native-context-safe request body budget", () => {
+  const config = loadConfig(baseEnv);
+
+  assert.equal(config.limits.maxBodyBytes, 1024 * 1024);
+});
+
+test("defaults to a bounded CGW latency budget", () => {
+  const config = loadConfig(baseEnv);
+
+  assert.equal(config.limits.timeoutMs, 600000);
+});
+
 test("rejects non-loopback binds and missing dedicated keys", () => {
   assert.throws(() => loadConfig({ ...baseEnv, CGW_SHIM_HOST: "0.0.0.0" }), /loopback/);
   assert.throws(() => loadConfig({ ...baseEnv, CGW_SHIM_CGW_BASE_URL: "https://example.test/v1" }), /http loopback/);
