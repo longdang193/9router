@@ -26,9 +26,22 @@ test("accepts only low, medium, and high reasoning effort values", () => {
   }, { "gpt-test": "chatgpt-web/gpt-test" }), /reasoning_effort/);
 });
 
-test("rejects unsupported roles, tools, and multimodal content", () => {
+test("ignores client tool metadata for text-only CGW reviews", () => {
+  const result = validateChatRequest({
+    model: "gpt-test",
+    tools: [{ type: "function", function: { name: "read_github" } }],
+    tool_choice: "auto",
+    messages: [{ role: "user", content: "Review the GitHub URL." }],
+  }, { "gpt-test": "chatgpt-web/gpt-test" });
+  assert.deepEqual(result, {
+    model: "chatgpt-web/gpt-test",
+    prompt: "Review the GitHub URL.",
+    toolsIgnored: true,
+  });
+});
+
+test("rejects unsupported roles and multimodal content", () => {
   assert.throws(() => validateChatRequest({ model: "gpt-test", messages: [{ role: "system", content: "x" }] }, { "gpt-test": "chatgpt-web/gpt-test" }), /user message/);
-  assert.throws(() => validateChatRequest({ model: "gpt-test", tools: [], messages: [{ role: "user", content: "x" }] }, { "gpt-test": "chatgpt-web/gpt-test" }), /tools/);
   assert.throws(() => validateChatRequest({ model: "gpt-test", messages: [{ role: "user", content: [{ type: "image_url" }] }] }, { "gpt-test": "chatgpt-web/gpt-test" }), /text/);
 });
 

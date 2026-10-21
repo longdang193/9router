@@ -47,7 +47,12 @@ test("returns a non-stream chat completion", async () => {
     const response = await fetch(`${baseUrl}/v1/chat/completions`, {
       method: "POST",
       headers: headers(),
-      body: JSON.stringify({ model: "gpt-test", messages: [{ role: "user", content: "hello" }] }),
+      body: JSON.stringify({
+        model: "gpt-test",
+        tools: [{ type: "function", function: { name: "read_github" } }],
+        tool_choice: "auto",
+        messages: [{ role: "user", content: "hello" }],
+      }),
     });
     assert.equal(response.status, 200);
     const body = await response.json();
