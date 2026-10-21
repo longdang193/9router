@@ -6,8 +6,8 @@ test("accepts exactly one plain user message", () => {
   const result = validateChatRequest({
     model: "gpt-test",
     messages: [{ role: "user", content: "hello" }],
-  }, { "gpt-test": "native-test" });
-  assert.deepEqual(result, { model: "native-test", prompt: "hello" });
+  }, { "gpt-test": "chatgpt-web/gpt-test" });
+  assert.deepEqual(result, { model: "chatgpt-web/gpt-test", prompt: "hello" });
 });
 
 test("accepts only low, medium, and high reasoning effort values", () => {
@@ -16,20 +16,20 @@ test("accepts only low, medium, and high reasoning effort values", () => {
       model: "gpt-test",
       reasoning_effort: effort,
       messages: [{ role: "user", content: "hello" }],
-    }, { "gpt-test": "native-test" });
+    }, { "gpt-test": "chatgpt-web/gpt-test" });
     assert.equal(result.reasoningEffort, effort);
   }
   assert.throws(() => validateChatRequest({
     model: "gpt-test",
     reasoning_effort: "normal",
     messages: [{ role: "user", content: "hello" }],
-  }, { "gpt-test": "native-test" }), /reasoning_effort/);
+  }, { "gpt-test": "chatgpt-web/gpt-test" }), /reasoning_effort/);
 });
 
 test("rejects unsupported roles, tools, and multimodal content", () => {
-  assert.throws(() => validateChatRequest({ model: "gpt-test", messages: [{ role: "system", content: "x" }] }, { "gpt-test": "native-test" }), /user message/);
-  assert.throws(() => validateChatRequest({ model: "gpt-test", tools: [], messages: [{ role: "user", content: "x" }] }, { "gpt-test": "native-test" }), /tools/);
-  assert.throws(() => validateChatRequest({ model: "gpt-test", messages: [{ role: "user", content: [{ type: "image_url" }] }] }, { "gpt-test": "native-test" }), /text/);
+  assert.throws(() => validateChatRequest({ model: "gpt-test", messages: [{ role: "system", content: "x" }] }, { "gpt-test": "chatgpt-web/gpt-test" }), /user message/);
+  assert.throws(() => validateChatRequest({ model: "gpt-test", tools: [], messages: [{ role: "user", content: "x" }] }, { "gpt-test": "chatgpt-web/gpt-test" }), /tools/);
+  assert.throws(() => validateChatRequest({ model: "gpt-test", messages: [{ role: "user", content: [{ type: "image_url" }] }] }, { "gpt-test": "chatgpt-web/gpt-test" }), /text/);
 });
 
 test("parses bearer authentication without accepting malformed values", () => {

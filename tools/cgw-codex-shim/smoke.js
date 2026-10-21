@@ -1,5 +1,5 @@
 import { loadConfig } from "./config.js";
-import { runCodexTurn } from "./codexExec.js";
+import { runCgwTurn } from "./cgwResponses.js";
 import { startServer } from "./server.js";
 
 function printHelp() {
@@ -36,10 +36,10 @@ async function main() {
   const config = loadConfig();
   const model = options.model || Object.keys(config.modelAliases)[0];
   if (!config.modelAliases[model]) throw new Error(`model alias is not configured: ${model}`);
-  const prompt = options.prompt || process.env.CGW_SHIM_SMOKE_PROMPT || "Reply with CGW_SHIM_NATIVE_OK only.";
+  const prompt = options.prompt || process.env.CGW_SHIM_SMOKE_PROMPT || "Reply with CGW_SHIM_CHAT_OK only.";
   const runtime = await startServer({
     config,
-    executeTurn: (request) => runCodexTurn({ config, ...request }),
+    executeTurn: (request) => runCgwTurn({ config, ...request }),
   });
 
   try {

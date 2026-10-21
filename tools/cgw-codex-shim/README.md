@@ -1,31 +1,35 @@
-# CGW Codex Shim
+# CGW Chat Shim
 
 This directory contains a loopback-only OpenAI-compatible adapter for the
-installed CGW/9Router/Codex runtime. It translates one plain-text, single-turn
-Chat Completions request into one bounded native `codex exec` invocation.
+installed CGW runtime. It translates one plain-text, single-turn Chat
+Completions request into one direct CGW Responses request.
 
 ## Scope
 
 - `GET /v1/models` exposes only aliases configured in
   `CGW_SHIM_MODEL_ALIASES_JSON`.
 - `POST /v1/chat/completions` accepts exactly one non-empty `user` message.
-- `reasoning_effort` optionally accepts `low`, `medium`, or `high` and overrides native Codex for that request.
+- `reasoning_effort` accepts `low`, `medium`, or `high` and is sent to CGW as
+  the per-request Responses `reasoning.effort` value.
 - `stream: true` returns buffered compatibility SSE; it is not live token
   streaming.
 - Tools, system messages, multi-turn context, images, audio, and response-format
-  options are rejected before native dispatch.
-- The service binds only to loopback and requires a dedicated bearer key.
-- Native success requires both `turn.completed` and a final assistant message.
-- Native failures after dispatch include `x-9router-no-replay: 1` as an advisory
-  diagnostic for the parent 9Router replay policy.
+  options are rejected before dispatch.
+- The service binds only to loopback and requires a dedicated local bearer key.
+- CGW inference is performed directly against its local `/v1/responses` bridge;
+  it never launches `codex exec` and never routes CGW aliases through 9Router's
+  Codex provider.
+- A missing CGW bearer fails closed before dispatch. Upstream failures after
+  dispatch include `x-9router-no-replay: 1` as an advisory diagnostic for the
+  parent 9Router replay policy.
 
 ## Configuration
 
 The shim automatically loads `.env` from the repository root when any shim
 entrypoint starts. Existing process environment variables remain authoritative.
-Keep the real `.env` uncommitted; add the relay variables shown below to your local file.
+Keep the real `.env` uncommitted.
 
-Start the long-running relay with:
+Start the long-running shim with:
 
 ```powershell
 node tools/cgw-codex-shim/run.js
@@ -37,26 +41,28 @@ The equivalent variables are:
 CGW_SHIM_HOST=127.0.0.1
 CGW_SHIM_PORT=20129
 CGW_SHIM_API_KEY=use-a-dedicated-local-key
-# Keep the public aliases stable, but qualify native targets so 9router routes
-# through its Codex OAuth provider instead of inferring the OpenAI API provider.
-CGW_SHIM_MODEL_ALIASES_JSON={"gpt-6.1-sol":"codex/gpt-6.1-sol","gpt-5.6-sol":"codex/gpt-5.6-sol"}
-CGW_SHIM_CODEX_BIN=codex
-CGW_SHIM_CODEX_BASE_URL=http://127.0.0.1:20128/v1
-CGW_SHIM_CODEX_MODEL_PROVIDER=9router
-CGW_SHIM_CODEX_WIRE_API=responses
-CGW_SHIM_CODEX_SANDBOX=read-only
-CGW_SHIM_CODEX_EPHEMERAL=true
+CGW_SHIM_MODEL_ALIASES_JSON={"gpt-6.1-sol":"chatgpt-web/gpt-6-sol","gpt-5.6-sol":"chatgpt-web/gpt-5.6-sol"}
+CGW_SHIM_CGW_BASE_URL=http://127.0.0.1:17841/v1
+# Use one of these local-only bearer sources. Never commit the value.
+CGW_SHIM_CGW_BEARER_FILE=C:\\Users\\me\\.codex\\cgw-bearer.env
+# CGW_SHIM_CGW_BEARER=use-a-current-native-bearer
 ```
 
-Optional `CGW_SHIM_CODEX_HOME` selects the already authenticated native Codex
-home for the process. The value is read at runtime and is never written to the
-repository. Use the existing authenticated session only for an explicitly
-approved local smoke test.
+The bearer file may contain a raw token or one of these assignments:
+
+```dotenv
+CGW_SHIM_CGW_BEARER=...
+OPENAI_ACCESS_TOKEN=...
+ACCESS_TOKEN=...
+```
+
+The bearer must be accepted by the authenticated CGW Responses bridge. An
+OpenAI API key beginning with `sk-` is not a substitute for this bearer. The
+shim reads the bearer at request time and never logs or returns it.
 
 The default limits are bounded and can be overridden with
 `CGW_SHIM_MAX_BODY_BYTES`, `CGW_SHIM_MAX_CONCURRENT`, `CGW_SHIM_MAX_QUEUE`,
-`CGW_SHIM_TIMEOUT_MS`, `CGW_SHIM_MAX_OUTPUT_BYTES`, and
-`CGW_SHIM_TERMINATION_GRACE_MS`.
+`CGW_SHIM_TIMEOUT_MS`, and `CGW_SHIM_TERMINATION_GRACE_MS`.
 
 ## Checks
 
@@ -65,11 +71,11 @@ node --test tools/cgw-codex-shim/test/*.test.js
 node tools/cgw-codex-shim/smoke.js --help
 ```
 
-For the live native smoke, set the environment above and run:
+For a live inference smoke, configure a valid bearer and run:
 
 ```powershell
-node tools/cgw-codex-shim/smoke.js --model gpt-6.1-sol --prompt "Reply with CGW_SHIM_NATIVE_OK only."
+node tools/cgw-codex-shim/smoke.js --model gpt-6.1-sol --prompt "Reply with CGW_SHIM_CHAT_OK only."
 ```
 
 The command prints only the selected alias and returned text. It does not print
-the bearer key, native arguments, or inherited credential values.
+the bearer key or request headers.

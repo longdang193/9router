@@ -24,6 +24,16 @@ function requiredString(value, name) {
   return result;
 }
 
+function requiredLoopbackUrl(value, name) {
+  const result = requiredString(value, name);
+  let url;
+  try { url = new URL(result); } catch { throw new Error(`${name} must be a valid URL`); }
+  if (url.protocol !== "http:" || !LOOPBACK_HOSTS.has(url.hostname)) {
+    throw new Error(`${name} must be an http loopback URL`);
+  }
+  return result.replace(/\/$/, "");
+}
+
 export function parseModelAliases(raw) {
   let parsed;
   try {
@@ -36,10 +46,13 @@ export function parseModelAliases(raw) {
   }
 
   const aliases = {};
-  for (const [alias, nativeModel] of Object.entries(parsed)) {
+  for (const [alias, targetModel] of Object.entries(parsed)) {
     if (!alias.trim() || /\s/.test(alias)) throw new Error("model alias must be non-empty and contain no whitespace");
-    const model = String(nativeModel ?? "").trim();
-    if (!model) throw new Error(`native model for alias ${alias} is required`);
+    const model = String(targetModel ?? "").trim();
+    if (!model) throw new Error(`target model for alias ${alias} is required`);
+    if (!model.startsWith("chatgpt-web/")) {
+      throw new Error(`CGW target model for alias ${alias} must use the chatgpt-web/ browser route`);
+    }
     aliases[alias] = model;
   }
   if (!Object.keys(aliases).length) throw new Error("at least one model alias is required");
@@ -55,9 +68,7 @@ export function loadConfig(env = process.env) {
   const port = positiveInteger(env.CGW_SHIM_PORT ?? "20129", "CGW_SHIM_PORT", { allowZero: true });
   if (port > 65535) throw new Error("CGW_SHIM_PORT must be <= 65535");
 
-  const baseUrl = requiredString(env.CGW_SHIM_CODEX_BASE_URL || "http://127.0.0.1:20128/v1", "CGW_SHIM_CODEX_BASE_URL");
-  const modelProvider = requiredString(env.CGW_SHIM_CODEX_MODEL_PROVIDER || "9router", "CGW_SHIM_CODEX_MODEL_PROVIDER");
-  const command = requiredString(env.CGW_SHIM_CODEX_BIN || "codex", "CGW_SHIM_CODEX_BIN");
+  const cgwBaseUrl = requiredLoopbackUrl(env.CGW_SHIM_CGW_BASE_URL || "http://127.0.0.1:17841/v1", "CGW_SHIM_CGW_BASE_URL");
 
   return {
     host,
@@ -72,16 +83,9 @@ export function loadConfig(env = process.env) {
       maxOutputBytes: positiveInteger(env.CGW_SHIM_MAX_OUTPUT_BYTES ?? "2097152", "CGW_SHIM_MAX_OUTPUT_BYTES"),
       terminationGraceMs: positiveInteger(env.CGW_SHIM_TERMINATION_GRACE_MS ?? "1500", "CGW_SHIM_TERMINATION_GRACE_MS"),
     },
-    native: {
-      command,
-      cwd: String(env.CGW_SHIM_CODEX_CWD || process.cwd()),
-      codexHome: String(env.CGW_SHIM_CODEX_HOME || process.env.CODEX_HOME || "").trim() || null,
-      modelProvider,
-      baseUrl,
-      wireApi: String(env.CGW_SHIM_CODEX_WIRE_API || "responses").trim(),
-      sandbox: String(env.CGW_SHIM_CODEX_SANDBOX || "read-only").trim(),
-      ephemeral: booleanValue(env.CGW_SHIM_CODEX_EPHEMERAL, "CGW_SHIM_CODEX_EPHEMERAL", true),
-      shell: false,
+    cgw: {
+      baseUrl: cgwBaseUrl,
+      bearerFile: String(env.CGW_SHIM_CGW_BEARER_FILE || "").trim() || null,
     },
   };
 }
