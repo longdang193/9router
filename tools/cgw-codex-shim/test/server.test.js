@@ -142,7 +142,11 @@ test("shares concurrency and queue limits across requests", async () => {
     release();
     const responses = await Promise.all([first, second]);
     assert.deepEqual(responses.map((response) => response.status), [200, 200]);
-    assert.equal((await third).status, 429);
+    const rejected = await third;
+    assert.equal(rejected.status, 429);
+    const payload = await rejected.json();
+    assert.equal(payload.error.message, "CGW execution queue is full");
+    assert.doesNotMatch(payload.error.message, /native execution/i);
   }, testConfig({ limits: { maxBodyBytes: 64 * 1024, maxConcurrent: 1, maxQueue: 1, timeoutMs: 1000 } }));
 });
 

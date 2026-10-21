@@ -23,7 +23,15 @@ Completions request into one direct CGW Responses request.
   dispatch include `x-9router-no-replay: 1` as an advisory diagnostic for the
   parent 9Router replay policy.
 - Requests that disconnect while waiting in the bounded queue are removed before
-  CGW dispatch, so abandoned retries do not consume native execution capacity.
+  CGW dispatch, so abandoned retries do not consume CGW execution capacity.
+
+The default queue admits one active CGW request and keeps up to eight additional
+requests waiting. The tenth simultaneous request receives HTTP `429`. This is
+the shim's CGW chat queue, not a native `codex exec` queue. Herdr's normal
+`combo-web-*` single-flight admission should keep this queue nearly empty;
+direct clients, bypassed Herdr launches, or duplicate retries can still fill it.
+If native `codex exec` output appears, the request used a different or stale
+adapter path and did not come through this direct CGW transport.
 
 ## Configuration
 

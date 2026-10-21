@@ -25,6 +25,10 @@ export function checkFallbackError(status, errorText, backoffLevel = 0) {
     ? (typeof errorText === "string" ? errorText : JSON.stringify(errorText)).toLowerCase()
     : "";
 
+  if (lowerError.includes("cgw execution queue is full")) {
+    return { shouldFallback: false, cooldownMs: 0, newBackoffLevel: backoffLevel };
+  }
+
   for (const rule of ERROR_RULES) {
     // Text-based rule: match substring in error message
     if (rule.text && lowerError && lowerError.includes(rule.text)) {

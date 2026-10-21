@@ -29,7 +29,7 @@ class WorkQueue {
           if (signal.aborted) item.onAbort();
         }
       } else {
-        const error = new Error("native execution queue is full");
+        const error = new Error("CGW execution queue is full");
         error.statusCode = 429;
         reject(error);
       }
