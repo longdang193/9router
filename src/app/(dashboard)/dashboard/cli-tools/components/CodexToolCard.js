@@ -175,12 +175,12 @@ export default function CodexToolCard({ tool, isExpanded, onToggle, baseUrl, api
 model = "${selectedModel}"
 model_provider = "9router"
 
-[model_providers.9router]
+[model_providers."9router"]
 name = "9Router"
 base_url = "${getEffectiveBaseUrl()}"
 wire_api = "responses"
 
-[model_providers.9router.http_headers]
+[model_providers."9router".http_headers]
 Authorization = "Bearer ${keyToUse}"
 
 [agents]
