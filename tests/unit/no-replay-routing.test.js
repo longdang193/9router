@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { handleComboChat } from "../../open-sse/services/combo.js";
+import { handleComboChat as handleCompactComboChat } from "../../open-sse/services/compact.js";
 import { NON_REPLAYABLE } from "../../open-sse/config/replayPolicy.js";
 import { DISPATCH_COMPLETED } from "../../open-sse/utils/dispatchState.js";
 
@@ -38,6 +39,23 @@ describe("non-replayable outer routing", () => {
       handleSingleModel,
       log,
       comboStrategy: "fallback"
+    });
+
+    expect(result.status).toBe(502);
+    expect(handleSingleModel).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the legacy combo import on the canonical no-replay path", async () => {
+    const handleSingleModel = vi.fn(async () => new Response(
+      JSON.stringify({ error: { message: "CGW upstream failed" } }),
+      { status: 502, headers: { "x-9router-no-replay": "1" } }
+    ));
+
+    const result = await handleCompactComboChat({
+      body: { messages: [{ role: "user", content: "hello" }] },
+      models: ["cgw/gpt-6.1-sol", "cgw/gpt-5.6-sol"],
+      handleSingleModel,
+      log,
     });
 
     expect(result.status).toBe(502);

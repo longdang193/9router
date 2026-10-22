@@ -171,10 +171,11 @@ export class BaseExecutor {
         const ct = response.headers?.get?.("content-type") || "";
         const cl = response.headers?.get?.("content-length") || "?";
         dbg("FETCH", `${this.provider.toUpperCase()} ← ${response.status} | ttft=${Date.now() - fetchT0}ms | ct=${ct} | cl=${cl}`);
+        const noReplay = response.headers?.get?.("x-9router-no-replay") === "1";
 
-        if (canReplayRequest(normalizedReplayPolicy, requestDispatch) && await tryRetry(urlIndex, response.status, `status ${response.status}`, response)) { urlIndex--; continue; }
+        if (!noReplay && canReplayRequest(normalizedReplayPolicy, requestDispatch) && await tryRetry(urlIndex, response.status, `status ${response.status}`, response)) { urlIndex--; continue; }
 
-        if (canReplayRequest(normalizedReplayPolicy, requestDispatch) && this.shouldRetry(response.status, urlIndex)) {
+        if (!noReplay && canReplayRequest(normalizedReplayPolicy, requestDispatch) && this.shouldRetry(response.status, urlIndex)) {
           log?.debug?.("RETRY", `${response.status} on ${url}, trying fallback ${urlIndex + 1}`);
           lastStatus = response.status;
           continue;
