@@ -13,6 +13,10 @@ function res(status) {
   return { status, headers: { get: () => "" } };
 }
 
+function noReplayRes(status) {
+  return { status, headers: { get: (name) => name === "x-9router-no-replay" ? "1" : "" } };
+}
+
 const creds = { apiKey: "k" };
 
 beforeEach(() => fetchMock.mockReset());
@@ -50,6 +54,21 @@ describe("BaseExecutor non-replayable dispatch policy", () => {
       replayPolicy: NON_REPLAYABLE, dispatchContext
     })).rejects.toMatchObject({ message: "ECONNRESET", dispatchState: DISPATCH_ATTEMPTED });
     expect(dispatchContext.state).toBe(DISPATCH_ATTEMPTED);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not retry a dispatched response that marks itself non-replayable", async () => {
+    const executor = new BaseExecutor("test", {
+      baseUrls: ["https://a/api", "https://b/api"],
+      retry: { 502: { attempts: 2, delayMs: 0 } }
+    });
+    fetchMock.mockResolvedValueOnce(noReplayRes(502)).mockResolvedValueOnce(res(200));
+
+    const result = await executor.execute({
+      model: "m", body: {}, stream: false, credentials: creds
+    });
+
+    expect(result.response.status).toBe(502);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
