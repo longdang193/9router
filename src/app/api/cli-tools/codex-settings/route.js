@@ -6,7 +6,8 @@ import { promisify } from "util";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
-import { parseTOML, stringifyTOML } from "confbox";
+import { parseTOML } from "confbox";
+import { serializeCodexConfig } from "@/lib/codexConfigSerialization.js";
 
 const execAsync = promisify(exec);
 
@@ -148,7 +149,7 @@ export async function POST(request) {
     setNestedSection(parsed, "agents.default_subagent_model", subagentModel || model);
 
     // Write merged config
-    const configContent = stringifyTOML(parsed);
+    const configContent = serializeCodexConfig(parsed);
     await fs.writeFile(configPath, configContent);
 
     return NextResponse.json({
@@ -196,7 +197,7 @@ export async function DELETE() {
     deleteNestedSection(parsed, "agents.subagent");
 
     // Write updated config
-    const configContent = stringifyTOML(parsed);
+    const configContent = serializeCodexConfig(parsed);
     await fs.writeFile(configPath, configContent);
 
     // Remove OPENAI_API_KEY from auth.json
