@@ -32,6 +32,37 @@ test("builds a direct CGW Responses request with the requested model and effort"
   assert.deepEqual(body.reasoning, { effort: "high" });
 });
 
+test("forwards only safe request correlation headers", () => {
+  const request = buildCgwResponseRequest({
+    ...config.cgw,
+    bearer: "cgw-token",
+    model: "chatgpt-web/gpt-6-sol",
+    prompt: "private prompt",
+    correlation: {
+      requestId: "server-request-1",
+      promptFingerprint: "d".repeat(64),
+    },
+  });
+
+  assert.equal(request.init.headers["x-9router-request-id"], "server-request-1");
+  assert.equal(request.init.headers["x-9router-prompt-fingerprint"], "d".repeat(64));
+  assert.equal(request.init.headers.authorization, "Bearer cgw-token");
+  assert.equal(request.init.headers["x-prompt"], undefined);
+});
+
+test("drops malformed request correlation headers", () => {
+  const request = buildCgwResponseRequest({
+    ...config.cgw,
+    bearer: "cgw-token",
+    model: "chatgpt-web/gpt-6-sol",
+    prompt: "private prompt",
+    correlation: { requestId: "prompt text", promptFingerprint: "not-a-digest" },
+  });
+
+  assert.equal(request.init.headers["x-9router-request-id"], undefined);
+  assert.equal(request.init.headers["x-9router-prompt-fingerprint"], undefined);
+});
+
 test("maps public low effort to CGW instant effort", () => {
   assert.equal(mapReasoningEffort("low"), "instant");
   const request = buildCgwResponseRequest({

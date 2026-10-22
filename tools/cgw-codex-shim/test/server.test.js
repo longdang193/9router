@@ -151,6 +151,30 @@ test("marks CGW failures as non-replayable after dispatch", async () => {
   });
 });
 
+test("passes safe request correlation to the CGW executor", async () => {
+  let seenRequest;
+  await withServer(async (request) => {
+    seenRequest = request;
+    return { text: "ok", dispatchStarted: true };
+  }, async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/v1/chat/completions`, {
+      method: "POST",
+      headers: {
+        ...headers(),
+        "x-9router-request-id": "server-request-1",
+        "x-9router-prompt-fingerprint": "c".repeat(64),
+      },
+      body: JSON.stringify({ model: "gpt-test", messages: [{ role: "user", content: "private prompt" }] }),
+    });
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(seenRequest.correlation, {
+      requestId: "server-request-1",
+      promptFingerprint: "c".repeat(64),
+    });
+  });
+});
+
 test("shares concurrency and queue limits across requests", async () => {
   let release;
   const gate = new Promise((resolve) => { release = resolve; });

@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { correlateResponse } from "../../src/sse/utils/requestCorrelation.js";
 
-describe("server request correlation", () => {
+import {
+  buildRequestCorrelation,
+  correlationHeaders,
+  correlateResponse,
+} from "../../src/sse/utils/requestCorrelation.js";
+
+describe("privacy-safe request correlation", () => {
   it("overwrites spoofable request IDs and preserves upstream ID separately", async () => {
     const response = await correlateResponse(
       new Response(JSON.stringify({ error: { message: "bad", request_id: "client-spoof" } }), { status: 400 }),
@@ -25,10 +30,36 @@ describe("server request correlation", () => {
     });
   });
 
-  it("adds header without consuming successful response body", async () => {
-    const response = await correlateResponse(new Response("stream-body"), "server-789");
+  it("gives identical prompts the same digest without retaining prompt text", () => {
+    const first = buildRequestCorrelation({
+      serverRequestId: "server-request-1",
+      body: { model: "combo-web-high", messages: [{ role: "user", content: "same prompt" }] },
+    });
+    const second = buildRequestCorrelation({
+      serverRequestId: "server-request-2",
+      body: { model: "combo-web-medium", messages: [{ role: "user", content: "same prompt" }] },
+    });
 
-    expect(response.headers.get("x-request-id")).toBe("server-789");
-    expect(await response.text()).toBe("stream-body");
+    expect(first.requestId).toBe("server-request-1");
+    expect(first.promptFingerprint).toMatch(/^[0-9a-f]{64}$/);
+    expect(first.promptFingerprint).toBe(second.promptFingerprint);
+    expect(JSON.stringify(first)).not.toContain("same prompt");
+  });
+
+  it("forwards only the trusted correlation headers", () => {
+    const headers = correlationHeaders({
+      requestId: "server-request-1",
+      promptFingerprint: "a".repeat(64),
+    });
+
+    expect(headers).toEqual({
+      "x-9router-request-id": "server-request-1",
+      "x-9router-prompt-fingerprint": "a".repeat(64),
+    });
+    expect(JSON.stringify(headers)).not.toContain("prompt text");
+  });
+
+  it("rejects malformed correlation values before forwarding", () => {
+    expect(correlationHeaders({ requestId: "prompt text", promptFingerprint: "not-a-digest" })).toEqual({});
   });
 });

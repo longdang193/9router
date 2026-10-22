@@ -306,7 +306,9 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
 
   const executor = getExecutor(provider);
   let replayPolicy = resolveReplayPolicy(provider, credentials);
+  const correlation = clientRawRequest?.correlation;
   const dispatchContext = createDispatchContext();
+  dispatchContext.correlation = correlation;
   trackPendingRequest(model, provider, connectionId, true);
   appendRequestLog({ model, provider, connectionId, status: "PENDING" }).catch(() => { });
 
@@ -377,6 +379,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
       latency: { ttft: 0, total: Date.now() - requestStartTime },
       tokens: { prompt_tokens: 0, completion_tokens: 0 },
       request: extractRequestConfig(body, stream),
+      correlation,
       providerRequest: translatedBody || null,
       response: { error: error.message || String(error), status: error.name === "AbortError" ? 499 : 502, thinking: null },
       pxpipe: pxpipeSummary,
@@ -448,7 +451,8 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
       provider, model, connectionId,
       latency: { ttft: 0, total: Date.now() - requestStartTime },
       tokens: { prompt_tokens: 0, completion_tokens: 0 },
-      request: extractRequestConfig(body, stream),
+       request: extractRequestConfig(body, stream),
+       correlation,
       providerRequest: finalBody || translatedBody || null,
       response: { error: message, status: statusCode, thinking: null },
       pxpipe: pxpipeSummary,
@@ -467,7 +471,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     });
   }
 
-  const sharedCtx = { provider, model, body, stream, translatedBody, finalBody, requestStartTime, connectionId, apiKey, clientRawRequest, onRequestSuccess, pxpipe: pxpipeSummary, reqTag, log, requestDetailId };
+  const sharedCtx = { provider, model, body, stream, translatedBody, finalBody, requestStartTime, connectionId, apiKey, clientRawRequest, correlation, onRequestSuccess, pxpipe: pxpipeSummary, reqTag, log, requestDetailId };
   const appendLog = (extra) => appendRequestLog({ model, provider, connectionId, ...extra }).catch(() => { });
   const trackDone = () => trackPendingRequest(model, provider, connectionId, false);
 

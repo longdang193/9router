@@ -15,6 +15,13 @@ function normalizeBearer(value) {
   return token.replace(/^Bearer\s+/i, "").trim() || null;
 }
 
+function normalizeCorrelation(correlation) {
+  if (!correlation || !/^[A-Za-z0-9._:-]{1,128}$/.test(correlation.requestId || "") || !/^[0-9a-f]{64}$/.test(correlation.promptFingerprint || "")) {
+    return undefined;
+  }
+  return { requestId: correlation.requestId, promptFingerprint: correlation.promptFingerprint };
+}
+
 async function readResponseTextBounded(response, maxBytes) {
   const limit = Number(maxBytes);
   if (!Number.isInteger(limit) || limit < 1 || !response.body?.getReader) {
@@ -69,7 +76,7 @@ export function resolveBearer(config, sourceEnv = process.env) {
   );
 }
 
-export function buildCgwResponseRequest({ baseUrl, bearer, model, prompt, reasoningEffort, signal }) {
+export function buildCgwResponseRequest({ baseUrl, bearer, model, prompt, reasoningEffort, correlation, signal }) {
   const url = new URL("responses", `${String(baseUrl).replace(/\/$/, "")}/`);
   const threadId = `thread_${randomUUID()}`;
   const turnId = `turn_${randomUUID()}`;
@@ -90,11 +97,17 @@ export function buildCgwResponseRequest({ baseUrl, bearer, model, prompt, reason
     stream: false,
   };
   if (reasoningEffort) body.reasoning = { effort: mapReasoningEffort(reasoningEffort) };
+  const safeCorrelation = normalizeCorrelation(correlation);
   return {
     url,
     init: {
       method: "POST",
-      headers: { authorization: `Bearer ${bearer}`, "content-type": "application/json" },
+      headers: {
+        authorization: `Bearer ${bearer}`,
+        "content-type": "application/json",
+        ...(safeCorrelation?.requestId ? { "x-9router-request-id": safeCorrelation.requestId } : {}),
+        ...(safeCorrelation?.promptFingerprint ? { "x-9router-prompt-fingerprint": safeCorrelation.promptFingerprint } : {}),
+      },
       body: JSON.stringify(body),
       signal,
     },
@@ -117,7 +130,7 @@ export function extractResponseText(payload) {
   return text.trim() ? text : null;
 }
 
-export async function runCgwTurn({ config, model, prompt, reasoningEffort, signal, bearer, fetchImpl = fetch }) {
+export async function runCgwTurn({ config, model, prompt, reasoningEffort, correlation, signal, bearer, fetchImpl = fetch }) {
   const resolvedBearer = bearer || resolveBearer(config);
   const timeoutSignal = AbortSignal.timeout(config.limits.timeoutMs);
   const requestSignal = signal && AbortSignal.any ? AbortSignal.any([signal, timeoutSignal]) : signal || timeoutSignal;
@@ -127,6 +140,7 @@ export async function runCgwTurn({ config, model, prompt, reasoningEffort, signa
     model,
     prompt,
     reasoningEffort,
+    correlation,
     signal: requestSignal,
   });
 

@@ -76,6 +76,27 @@ describe("request detail storage redaction", () => {
     expect(JSON.stringify(stored)).not.toMatch(/secret/);
   });
 
+  it("persists safe request correlation without persisting prompt text", async () => {
+    const detailId = `${testDetailId}-correlation`;
+    const promptFingerprint = "b".repeat(64);
+    await db.saveRequestDetail({
+      id: detailId,
+      provider: "codex",
+      model: "combo-web-high",
+      status: "error",
+      correlation: { requestId: "server-request-1", promptFingerprint },
+      request: { messages: [{ role: "user", content: "private prompt" }] },
+    });
+    let stored = null;
+    for (let attempt = 0; attempt < 20 && !stored; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, 25));
+      stored = await db.getRequestDetailById(detailId);
+    }
+
+    expect(stored.correlation).toEqual({ requestId: "server-request-1", promptFingerprint });
+    expect(JSON.stringify(stored)).not.toContain("private prompt");
+  });
+
   it("persists the request detail correlation key on usage rows", async () => {
     const timestamp = "2026-10-11T10:00:00.000Z";
     await db.saveRequestUsage({
