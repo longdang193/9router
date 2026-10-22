@@ -26,6 +26,24 @@ const { handleChatCore } = await import("../../open-sse/handlers/chatCore.js");
 const log = { info: vi.fn(), warn: vi.fn() };
 
 describe("non-replayable outer routing", () => {
+  it("does not rotate when the upstream response marks dispatch as non-replayable", async () => {
+    const handleSingleModel = vi.fn(async () => new Response(
+      JSON.stringify({ error: { message: "CGW upstream failed" } }),
+      { status: 502, headers: { "x-9router-no-replay": "1" } }
+    ));
+
+    const result = await handleComboChat({
+      body: { messages: [{ role: "user", content: "hello" }] },
+      models: ["cgw/gpt-6.1-sol", "cgw/gpt-5.6-sol"],
+      handleSingleModel,
+      log,
+      comboStrategy: "fallback"
+    });
+
+    expect(result.status).toBe(502);
+    expect(handleSingleModel).toHaveBeenCalledTimes(1);
+  });
+
   it("does not rotate to the next combo member after dispatch", async () => {
     const handleSingleModel = vi.fn(async () => {
       const response = new Response(JSON.stringify({ error: { message: "ambiguous" } }), { status: 502 });
@@ -77,5 +95,38 @@ describe("non-replayable outer routing", () => {
     expect(result.dispatchState).toBe(DISPATCH_COMPLETED);
     expect(result.replayPolicy).toBe(NON_REPLAYABLE);
     expect(result.response.status).toBe(401);
+  });
+
+  it("promotes the upstream no-replay marker to the outer error result", async () => {
+    executeMock.mockImplementation(async ({ dispatchContext }) => {
+      dispatchContext.state = DISPATCH_COMPLETED;
+      return {
+        response: new Response(JSON.stringify({ error: { message: "CGW upstream failed" } }), {
+          status: 502,
+          headers: { "x-9router-no-replay": "1" },
+        }),
+        url: "http://relay/v1/chat/completions",
+        headers: {},
+        transformedBody: null,
+      };
+    });
+
+    const result = await handleChatCore({
+      body: { model: "relay-model", stream: false, messages: [{ role: "user", content: "hello" }] },
+      modelInfo: { provider: "openai-compatible-replay-test", model: "relay-model" },
+      credentials: { apiKey: "k", providerSpecificData: {} },
+      log,
+      connectionId: "conn",
+      rtkEnabled: false,
+      headroomEnabled: false,
+      cavemanEnabled: false,
+      ponytailEnabled: false,
+      pxpipeEnabled: false,
+      clientRawRequest: { endpoint: "/v1/chat/completions", body: {}, headers: {} },
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.replayPolicy).toBe(NON_REPLAYABLE);
+    expect(result.response.headers.get("x-9router-no-replay")).toBe("1");
   });
 });

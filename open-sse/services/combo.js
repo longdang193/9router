@@ -17,6 +17,11 @@ const HARD_CAPS = new Set(["vision", "pdf", "audioInput", "videoInput"]);
 const TOOL_CALL_PREFIX = "[Called tools: ";
 const TOOL_RESULT_PREFIX = "[Tool result: ";
 
+function hasNoReplayMarker(value) {
+  return value?.headers?.get?.("x-9router-no-replay") === "1"
+    || value?.response?.headers?.get?.("x-9router-no-replay") === "1";
+}
+
 // Flatten tool turns into prose so panel models keep the context but can't loop
 // on tools: drop the request's tools, turn tool/function results into assistant
 // text, and inline assistant tool_calls names instead of the structured field.
@@ -341,7 +346,7 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
         return result;
       }
 
-      if (result.replayPolicy === NON_REPLAYABLE && hasDispatchStarted(result.dispatchState)) {
+      if (hasNoReplayMarker(result) || (result.replayPolicy === NON_REPLAYABLE && hasDispatchStarted(result.dispatchState))) {
         log.warn("COMBO", `Model ${modelStr} failed after dispatch; replay disabled`, { status: result.status });
         return result;
       }
