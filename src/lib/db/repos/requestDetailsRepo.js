@@ -6,6 +6,8 @@ const DEFAULT_BATCH_SIZE = 20;
 const DEFAULT_FLUSH_INTERVAL_MS = 5000;
 const DEFAULT_MAX_JSON_SIZE = 5 * 1024;
 const CONFIG_CACHE_TTL_MS = 5000;
+const SAFE_REQUEST_ID = /^[A-Za-z0-9._:-]{1,128}$/;
+const SAFE_FINGERPRINT = /^[0-9a-f]{64}$/;
 
 let cachedConfig = null;
 let cachedConfigTs = 0;
@@ -88,6 +90,16 @@ function safeClientMetadata(providerRequest) {
     : undefined;
 }
 
+function safeCorrelation(correlation) {
+  if (!correlation || !SAFE_REQUEST_ID.test(correlation.requestId || "") || !SAFE_FINGERPRINT.test(correlation.promptFingerprint || "")) {
+    return undefined;
+  }
+  return {
+    requestId: correlation.requestId,
+    promptFingerprint: correlation.promptFingerprint,
+  };
+}
+
 async function flushToDatabase() {
   if (isFlushing) return;
   if (writeBuffer.length === 0) return;
@@ -114,6 +126,7 @@ async function flushToDatabase() {
             status: item.status || null,
             latency: item.latency || {},
             tokens: item.tokens || {},
+            correlation: safeCorrelation(item.correlation),
             clientMetadata: safeClientMetadata(item.providerRequest),
             request: redactPayload(item.request),
             providerRequest: redactPayload(item.providerRequest),

@@ -78,6 +78,7 @@ export function buildRequestDetail(base, overrides = {}) {
     timestamp: new Date().toISOString(),
     latency: base.latency || { ttft: 0, total: 0 },
     tokens: base.tokens || { prompt_tokens: 0, completion_tokens: 0 },
+    correlation: base.correlation || undefined,
     request: base.request,
     providerRequest: base.providerRequest || null,
     providerResponse: base.providerResponse || null,

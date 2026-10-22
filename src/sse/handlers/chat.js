@@ -19,7 +19,7 @@ import { handleComboChat, handleFusionChat, detectRequiredCapabilities } from "o
 import { augmentModelsWithCapacityAdapter, withCapacityAdapterStripping, getActiveAdapterStrategy } from "open-sse/services/capacityAdapter.js";
 import { handleBypassRequest } from "open-sse/utils/bypassHandler.js";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
-import { correlateResponse } from "../utils/requestCorrelation.js";
+import { buildRequestCorrelation, correlateResponse } from "../utils/requestCorrelation.js";
 import { detectFormatByEndpoint } from "open-sse/translator/formats.js";
 import * as log from "../utils/logger.js";
 import { updateProviderCredentials, checkAndRefreshToken } from "../services/tokenRefresh.js";
@@ -77,6 +77,7 @@ async function handleChatInternal(request, clientRawRequest = null, serverReques
   } else {
     clientRawRequest = { ...clientRawRequest, serverRequestId };
   }
+  clientRawRequest = { ...clientRawRequest, correlation: buildRequestCorrelation({ serverRequestId, body }) };
   // Claude Code marks a 1M-context request as `<model>[1m]`; the marker matches
   // no combo, alias or provider/model pair, so it must not reach resolution.
   // The capability travels in the anthropic-beta header, forwarded as-is.

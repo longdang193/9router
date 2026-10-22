@@ -2,6 +2,16 @@ import http from "node:http";
 import { randomUUID } from "node:crypto";
 import { errorResponse, jsonResponse, parseBearerToken, validateChatRequest } from "./http.js";
 
+const SAFE_REQUEST_ID = /^[A-Za-z0-9._:-]{1,128}$/;
+const SAFE_FINGERPRINT = /^[0-9a-f]{64}$/;
+
+function readCorrelation(headers) {
+  const requestId = headers["x-9router-request-id"];
+  const promptFingerprint = headers["x-9router-prompt-fingerprint"];
+  if (!SAFE_REQUEST_ID.test(requestId || "") || !SAFE_FINGERPRINT.test(promptFingerprint || "")) return undefined;
+  return { requestId, promptFingerprint };
+}
+
 class WorkQueue {
   constructor(maxConcurrent, maxQueue) {
     this.maxConcurrent = maxConcurrent;
@@ -152,6 +162,7 @@ export function createRequestHandler({ config, executeTurn }) {
         model: requestInfo.model,
         prompt: requestInfo.prompt,
         reasoningEffort: requestInfo.reasoningEffort,
+        correlation: readCorrelation(request.headers),
         signal: abortController.signal,
       }), abortController.signal);
       if (response.destroyed) return;

@@ -13,6 +13,9 @@ import {
   markDispatchCompleted,
 } from "../utils/dispatchState.js";
 
+const SAFE_REQUEST_ID = /^[A-Za-z0-9._:-]{1,128}$/;
+const SAFE_FINGERPRINT = /^[0-9a-f]{64}$/;
+
 /**
  * BaseExecutor - Base class for provider executors
  */
@@ -51,7 +54,7 @@ export class BaseExecutor {
     return baseUrls[urlIndex] || baseUrls[0] || this.config.baseUrl;
   }
 
-  buildHeaders(credentials, stream = true) {
+  buildHeaders(credentials, stream = true, url = null, model = null, correlation = null) {
     const headers = {
       "Content-Type": "application/json",
       ...this.config.headers
@@ -78,6 +81,13 @@ export class BaseExecutor {
 
     if (stream) {
       headers["Accept"] = "text/event-stream";
+    }
+
+    const target = typeof url === "string" ? new URL(url) : null;
+    const isLoopback = target && ["localhost", "127.0.0.1", "::1"].includes(target.hostname);
+    if (isLoopback && SAFE_REQUEST_ID.test(correlation?.requestId || "") && SAFE_FINGERPRINT.test(correlation?.promptFingerprint || "")) {
+      headers["x-9router-request-id"] = correlation.requestId;
+      headers["x-9router-prompt-fingerprint"] = correlation.promptFingerprint;
     }
 
     return headers;
@@ -145,7 +155,7 @@ export class BaseExecutor {
     for (let urlIndex = 0; urlIndex < fallbackCount; urlIndex++) {
       const url = this.buildUrl(model, stream, urlIndex, credentials, body);
       const transformedBody = this.transformRequest(model, body, stream, credentials);
-      const headers = this.buildHeaders(credentials, stream, url, model);
+      const headers = this.buildHeaders(credentials, stream, url, model, requestDispatch.correlation);
 
       if (!retryAttemptsByUrl[urlIndex]) retryAttemptsByUrl[urlIndex] = 0;
 

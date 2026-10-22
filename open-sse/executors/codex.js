@@ -199,8 +199,8 @@ export class CodexExecutor extends BaseExecutor {
    * Override headers to add codex-specific identity headers.
    * transformRequest runs BEFORE buildHeaders, sets this._currentSessionId.
    */
-  buildHeaders(credentials, stream = true) {
-    const headers = super.buildHeaders(credentials, stream);
+  buildHeaders(credentials, stream = true, url = null, model = null, correlation = null) {
+    const headers = super.buildHeaders(credentials, stream, url, model, correlation);
     headers["session_id"] = this._currentSessionId || credentials?.connectionId || "default";
     // Identify client type to Codex backend (matches official codex CLI)
     if (!headers["originator"]) headers["originator"] = "codex_cli_rs";
