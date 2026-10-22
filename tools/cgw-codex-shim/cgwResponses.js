@@ -76,7 +76,7 @@ export function resolveBearer(config, sourceEnv = process.env) {
   );
 }
 
-export function buildCgwResponseRequest({ baseUrl, bearer, model, prompt, reasoningEffort, correlation, signal }) {
+export function buildCgwResponseRequest({ baseUrl, bearer, model, prompt, reasoningEffort, correlation, generationId, signal }) {
   const url = new URL("responses", `${String(baseUrl).replace(/\/$/, "")}/`);
   const threadId = `thread_${randomUUID()}`;
   const turnId = `turn_${randomUUID()}`;
@@ -107,6 +107,7 @@ export function buildCgwResponseRequest({ baseUrl, bearer, model, prompt, reason
         "content-type": "application/json",
         ...(safeCorrelation?.requestId ? { "x-9router-request-id": safeCorrelation.requestId } : {}),
         ...(safeCorrelation?.promptFingerprint ? { "x-9router-prompt-fingerprint": safeCorrelation.promptFingerprint } : {}),
+        ...(generationId ? { "x-lightrsi-generation-id": generationId } : {}),
       },
       body: JSON.stringify(body),
       signal,
@@ -130,7 +131,7 @@ export function extractResponseText(payload) {
   return text.trim() ? text : null;
 }
 
-export async function runCgwTurn({ config, model, prompt, reasoningEffort, correlation, signal, bearer, fetchImpl = fetch }) {
+export async function runCgwTurn({ config, model, prompt, reasoningEffort, correlation, generationId, signal, bearer, fetchImpl = fetch }) {
   const resolvedBearer = bearer || resolveBearer(config);
   const timeoutSignal = AbortSignal.timeout(config.limits.timeoutMs);
   const requestSignal = signal && AbortSignal.any ? AbortSignal.any([signal, timeoutSignal]) : signal || timeoutSignal;
@@ -141,6 +142,7 @@ export async function runCgwTurn({ config, model, prompt, reasoningEffort, corre
     prompt,
     reasoningEffort,
     correlation,
+    generationId,
     signal: requestSignal,
   });
 

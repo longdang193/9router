@@ -106,6 +106,22 @@ async function readNodeBody(request, maxBytes) {
 export function createRequestHandler({ config, executeTurn }) {
   const queue = new WorkQueue(config.limits.maxConcurrent, config.limits.maxQueue);
   const activeControllers = new Set();
+  const generationExecutions = new Map();
+  const maxGenerationExecutions = Math.max(1, Number(config.limits.maxGenerationExecutions || 1024));
+
+  const executeGeneration = ({ generationId, task, signal }) => {
+    if (!generationId) return queue.run(task, signal);
+    const existing = generationExecutions.get(generationId);
+    if (existing) return existing;
+    const execution = queue.run(task, signal);
+    generationExecutions.set(generationId, execution);
+    while (generationExecutions.size > maxGenerationExecutions) {
+      const oldest = generationExecutions.keys().next().value;
+      if (oldest === undefined) break;
+      generationExecutions.delete(oldest);
+    }
+    return execution;
+  };
 
   const requestHandler = async function requestHandler(request, response) {
     const url = new URL(request.url || "/", `http://${request.headers.host || "127.0.0.1"}`);
@@ -156,15 +172,27 @@ export function createRequestHandler({ config, executeTurn }) {
     request.once("aborted", onAborted);
     request.once("close", onRequestClose);
     response.once("close", onResponseClose);
+    const rawGenerationId = request.headers["x-lightrsi-generation-id"]
+      || request.headers["x-lightrsi-request-id"];
+    const generationId = Array.isArray(rawGenerationId)
+      ? rawGenerationId[0]?.trim()
+      : typeof rawGenerationId === "string"
+        ? rawGenerationId.trim()
+        : undefined;
     const id = `chatcmpl-${randomUUID()}`;
     try {
-      const result = await queue.run(() => executeTurn({
-        model: requestInfo.model,
-        prompt: requestInfo.prompt,
-        reasoningEffort: requestInfo.reasoningEffort,
-        correlation: readCorrelation(request.headers),
+      const result = await executeGeneration({
+        generationId,
         signal: abortController.signal,
-      }), abortController.signal);
+        task: () => executeTurn({
+          model: requestInfo.model,
+          prompt: requestInfo.prompt,
+          reasoningEffort: requestInfo.reasoningEffort,
+          correlation: readCorrelation(request.headers),
+          signal: abortController.signal,
+          generationId,
+        }),
+      });
       if (response.destroyed) return;
       if (body.stream === true) {
         writeSse(response, { id, model: body.model, text: result.text });
@@ -179,7 +207,10 @@ export function createRequestHandler({ config, executeTurn }) {
       }
     } catch (error) {
       if (response.destroyed) return;
-      const headers = error.dispatchStarted ? { "x-9router-no-replay": "1" } : {};
+      const headers = {
+        ...(error.dispatchStarted ? { "x-9router-no-replay": "1" } : {}),
+        ...(generationId ? { "x-lightrsi-generation-id": generationId } : {}),
+      };
       writeJson(response, { error: { message: error.message || "native execution failed", type: "upstream_error", code: error.code || "native_execution_failed" } }, error.statusCode || 502, headers);
     } finally {
       activeControllers.delete(abortController);
