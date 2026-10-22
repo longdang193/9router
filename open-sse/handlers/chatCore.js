@@ -31,6 +31,7 @@ import { prefetchRemoteImages } from "../translator/concerns/prefetch.js";
 import { defaultClaudeToolType } from "../translator/concerns/toolCall.js";
 import { resolveSessionId } from "../utils/sessionManager.js";
 import { createDispatchContext, canReplayRequest, getDispatchState } from "../utils/dispatchState.js";
+import { NON_REPLAYABLE } from "../config/replayPolicy.js";
 
 /**
  * Core chat handler - shared between SSE and Worker
@@ -304,7 +305,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   if (passthrough && clientTool === "claude") anchorClaudeCache(translatedBody);
 
   const executor = getExecutor(provider);
-  const replayPolicy = resolveReplayPolicy(provider, credentials);
+  let replayPolicy = resolveReplayPolicy(provider, credentials);
   const dispatchContext = createDispatchContext();
   trackPendingRequest(model, provider, connectionId, true);
   appendRequestLog({ model, provider, connectionId, status: "PENDING" }).catch(() => { });
@@ -362,6 +363,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   try {
     const result = await executor.execute({ model, body: translatedBody, stream, credentials, signal: streamController.signal, log, proxyOptions, replayPolicy, dispatchContext });
     providerResponse = result.response;
+    if (providerResponse?.headers?.get?.("x-9router-no-replay") === "1") replayPolicy = NON_REPLAYABLE;
     providerUrl = result.url;
     providerHeaders = result.headers;
     finalBody = result.transformedBody;
@@ -421,6 +423,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
         }
         try {
           const retryResult = await executor.execute({ model, body: translatedBody, stream, credentials, signal: streamController.signal, log, proxyOptions, replayPolicy, dispatchContext });
+          if (retryResult.response?.headers?.get?.("x-9router-no-replay") === "1") replayPolicy = NON_REPLAYABLE;
           if (retryResult.response.ok) {
             providerResponse = retryResult.response;
             providerUrl = retryResult.url;
