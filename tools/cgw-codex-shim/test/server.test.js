@@ -175,6 +175,34 @@ test("passes safe request correlation to the CGW executor", async () => {
   });
 });
 
+test("coalesces duplicate generation ids without a second executeTurn", async () => {
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  let calls = 0;
+  await withServer(async ({ generationId }) => {
+    calls += 1;
+    assert.equal(generationId, "generation-1");
+    await gate;
+    return { text: "one generation", dispatchStarted: true };
+  }, async (baseUrl) => {
+    const request = () => fetch(`${baseUrl}/v1/chat/completions`, {
+      method: "POST",
+      headers: { ...headers(), "x-lightrsi-generation-id": "generation-1" },
+      body: JSON.stringify({ model: "gpt-test", messages: [{ role: "user", content: "hello" }] }),
+    });
+
+    const first = request();
+    const second = request();
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    assert.equal(calls, 1);
+    release();
+
+    assert.deepEqual((await Promise.all([first, second])).map((response) => response.status), [200, 200]);
+    assert.equal((await request()).status, 200);
+    assert.equal(calls, 1);
+  });
+});
+
 test("shares concurrency and queue limits across requests", async () => {
   let release;
   const gate = new Promise((resolve) => { release = resolve; });
