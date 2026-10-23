@@ -116,6 +116,20 @@ jobs:
           git merge --abort 2>/dev/null || true
           exit 1
 
+      - name: Detect whether synchronization is needed
+        id: sync-state
+        run: |
+          if git diff --quiet origin/master...HEAD; then
+            echo "NO_CHANGES=true" >> "$GITHUB_ENV"
+            {
+              echo "## Upstream synchronization"
+              echo
+              echo "No changes: upstream/master is already contained in master."
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "NO_CHANGES=false" >> "$GITHUB_ENV"
+          fi
+
       - name: Upload conflict evidence
         if: failure()
         uses: actions/upload-artifact@v4
@@ -127,6 +141,7 @@ jobs:
 
       - name: Classify changed paths
         id: paths
+        if: env.NO_CHANGES != 'true'
         run: |
           git diff --name-only origin/master...HEAD > changed-paths.txt
           if grep -Eq '^(\.github/workflows/|\.github/actions/|package(-lock)?\.json$|scripts/|open-sse/(executors|services|handlers/routing)|src/(app/api|lib/auth|lib/db|lib/usage)|src/app/api/v1/chatgpt-web/responses/|tests/unit/(chatgpt-web-responses-relay|attribution-persistence))' changed-paths.txt; then
@@ -137,21 +152,24 @@ jobs:
 
       - name: Verify expected remote head before push
         id: remote-head
+        if: env.NO_CHANGES != 'true'
         run: |
           expected_remote_sha="$(git ls-remote origin "refs/heads/${SYNC_BRANCH}" | awk '{print $1}')"
           if [[ -z "$expected_remote_sha" ]]; then expected_remote_sha=0000000000000000000000000000000000000000; fi
           echo "expected=$expected_remote_sha" >> "$GITHUB_OUTPUT"
 
       - name: Push synchronization branch
+        if: env.NO_CHANGES != 'true'
         run: git push --force-with-lease="refs/heads/${SYNC_BRANCH}:${{ steps.remote-head.outputs.expected }}" origin "HEAD:refs/heads/${SYNC_BRANCH}"
 
       - name: Create or update synchronization PR
         id: sync-pr
+        if: env.NO_CHANGES != 'true'
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           if [[ "${{ steps.existing-pr.outputs.number }}" == "" ]]; then
-            pr_url="$(gh pr create --base master --head "$SYNC_BRANCH" --title "$SYNC_TITLE" --body-file <(cat <<'EOF'
+            body="$(cat <<'EOF'
           This PR is maintained by the scheduled upstream synchronization workflow.
 
           - Source: `decolua/9router:master`
@@ -159,26 +177,27 @@ jobs:
           - Merge policy: merge commit only
           - Privileged-path changes, conflicts, and failed checks require manual review.
           EOF
-          ))"
-            echo "number=$(gh pr view "$pr_url" --json number --jq .number)" >> "$GITHUB_OUTPUT"
+          )"
+            pr_json="$(gh api --method POST "repos/${GITHUB_REPOSITORY}/pulls" -f title="$SYNC_TITLE" -f head="$SYNC_BRANCH" -f base=master -f body="$body")"
+            echo "number=$(jq -r '.number' <<<"$pr_json")" >> "$GITHUB_OUTPUT"
           else
             echo "number=${{ steps.existing-pr.outputs.number }}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Wait for the required CI check
-        if: steps.paths.outputs.privileged == 'false'
+        if: env.NO_CHANGES != 'true' && steps.paths.outputs.privileged == 'false'
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: gh pr checks "${{ steps.sync-pr.outputs.number }}" --required --watch --interval 15
 
       - name: Enable merge-commit auto-merge for non-privileged changes
-        if: steps.paths.outputs.privileged == 'false'
+        if: env.NO_CHANGES != 'true' && steps.paths.outputs.privileged == 'false'
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
-        run: gh pr merge "${{ steps.sync-pr.outputs.number }}" --merge --auto
+        run: gh api --method PUT "repos/${GITHUB_REPOSITORY}/pulls/${{ steps.sync-pr.outputs.number }}/auto-merge" -f merge_method=merge
 
       - name: Mark privileged changes for manual review
-        if: steps.paths.outputs.privileged == 'true'
+        if: env.NO_CHANGES != 'true' && steps.paths.outputs.privileged == 'true'
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
-        run: gh pr comment "${{ steps.sync-pr.outputs.number }}" --body 'Privileged fork-owned paths changed. Auto-merge is intentionally withheld; explicit review is required.'
+        run: gh api --method POST "repos/${GITHUB_REPOSITORY}/issues/${{ steps.sync-pr.outputs.number }}/comments" -f body='Privileged fork-owned paths changed. Auto-merge is intentionally withheld; explicit review is required.'
