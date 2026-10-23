@@ -2,6 +2,7 @@
 import { getModelAliases, getComboByName, getProviderNodes, getProviderConnections } from "@/lib/localDb";
 import { parseModel as parseModelCore, resolveModelAliasFromMap, getModelInfoCore } from "open-sse/services/model.js";
 import REGISTRY from "open-sse/providers/registry/index.js";
+import { assertSupportedModel } from "open-sse/config/retiredModels.js";
 
 // Local provider alias overrides (HMR-friendly, applied on top of open-sse map)
 const LOCAL_PROVIDER_ALIASES = {
@@ -35,6 +36,7 @@ async function resolveCompatibleNode(prefix, type) {
 }
 
 export function parseModel(modelStr) {
+  assertSupportedModel(modelStr);
   const parsed = parseModelCore(modelStr);
   if (parsed?.providerAlias && LOCAL_PROVIDER_ALIASES[parsed.providerAlias]) {
     return { ...parsed, provider: LOCAL_PROVIDER_ALIASES[parsed.providerAlias] };
@@ -98,6 +100,7 @@ export async function getModelInfo(modelStr) {
  * @returns {Promise<string[]|null>} Array of models or null if not a combo
  */
 export async function getComboModels(modelStr) {
+  assertSupportedModel(modelStr);
   // Only check if it's not in provider/model format
   if (modelStr.includes("/")) return null;
 

@@ -5,6 +5,11 @@ import { resetComboRotation } from "open-sse/services/combo.js";
 // Validate combo name: only a-z, A-Z, 0-9, -, _
 const VALID_NAME_REGEX = /^[a-zA-Z0-9_.\-]+$/;
 
+function retiredModelResponse(error) {
+  if (error?.code !== "RETIRED_MODEL") return null;
+  return NextResponse.json({ error: error.message }, { status: 410 });
+}
+
 // GET /api/combos/[id] - Get combo by ID
 export async function GET(request, { params }) {
   try {

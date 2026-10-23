@@ -1,10 +1,11 @@
 import { v4 as uuidv4 } from "uuid";
 import { getAdapter } from "../driver.js";
 import { parseJson, stringifyJson } from "../helpers/jsonCol.js";
+import { assertSupportedCombo, assertSupportedModel } from "open-sse/config/retiredModels.js";
 
 function rowToCombo(row) {
   if (!row) return null;
-  return {
+  const combo = {
     id: row.id,
     name: row.name,
     kind: row.kind,
@@ -12,6 +13,7 @@ function rowToCombo(row) {
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
+  return assertSupportedCombo(combo);
 }
 
 export async function getCombos() {
@@ -27,12 +29,14 @@ export async function getComboById(id) {
 }
 
 export async function getComboByName(name) {
+  assertSupportedModel(name);
   const db = await getAdapter();
   const row = db.get(`SELECT * FROM combos WHERE name = ?`, [name]);
   return rowToCombo(row);
 }
 
 export async function createCombo(data) {
+  assertSupportedCombo({ name: data.name, models: data.models || [] });
   const db = await getAdapter();
   const now = new Date().toISOString();
   const combo = {
@@ -57,6 +61,7 @@ export async function updateCombo(id, data) {
     const row = db.get(`SELECT * FROM combos WHERE id = ?`, [id]);
     if (!row) return;
     const merged = { ...rowToCombo(row), ...data, updatedAt: new Date().toISOString() };
+    assertSupportedCombo(merged);
     db.run(
       `UPDATE combos SET name = ?, kind = ?, models = ?, updatedAt = ? WHERE id = ?`,
       [merged.name, merged.kind, stringifyJson(merged.models || []), merged.updatedAt, id]

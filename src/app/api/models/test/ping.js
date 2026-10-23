@@ -4,13 +4,6 @@ import { getConsistentMachineId } from "@/shared/utils/machineId";
 
 const CLI_TOKEN_SALT = "9r-cli-auth";
 
-function isExpectedCgwModel(requestedModel, returnedModel) {
-  if (!String(requestedModel).startsWith("cgw/")) return true;
-  const returned = typeof returnedModel === "string" ? returnedModel : "";
-  const publicModel = String(requestedModel).slice("cgw/".length);
-  return returned === requestedModel || returned === publicModel;
-}
-
 function createSilentWavFile() {
   const sampleRate = 16000;
   const channels = 1;
@@ -137,7 +130,7 @@ export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:$
     return { ok: true, latencyMs, error: null, status: res.status };
   }
 
-  const probeTimeoutMs = String(model).startsWith("cgw/") ? 30000 : 15000;
+  const probeTimeoutMs = 15000;
   const res = await fetch(`${baseUrl}/api/v1/chat/completions`, {
     method: "POST",
     headers,
@@ -186,15 +179,6 @@ export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:$
       latencyMs,
       status: res.status,
       error: String(providerError).slice(0, 240),
-    };
-  }
-
-  if (!isExpectedCgwModel(model, parsed?.model)) {
-    return {
-      ok: false,
-      latencyMs,
-      status: res.status,
-      error: `Provider returned model ${parsed?.model || "<missing>"}; expected ${model}`,
     };
   }
 

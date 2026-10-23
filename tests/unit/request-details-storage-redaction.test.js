@@ -82,7 +82,7 @@ describe("request detail storage redaction", () => {
     await db.saveRequestDetail({
       id: detailId,
       provider: "codex",
-      model: "combo-web-high",
+      model: "maintained-combo",
       status: "error",
       correlation: { requestId: "server-request-1", promptFingerprint },
       request: { messages: [{ role: "user", content: "private prompt" }] },

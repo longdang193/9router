@@ -94,8 +94,8 @@ describe("provider replay policy", () => {
     const created = await createNode(new Request("http://127.0.0.1/api/provider-nodes", {
       method: "POST",
       body: JSON.stringify({
-        name: "CGW Relay",
-        prefix: "cgw",
+        name: "Relay",
+        prefix: "relay",
         apiType: "chat",
         baseUrl: "http://127.0.0.1:20129/v1",
         replayPolicy: NON_REPLAYABLE,
@@ -108,8 +108,8 @@ describe("provider replay policy", () => {
     const updated = await updateNode(new Request("http://127.0.0.1/api/provider-nodes/update", {
       method: "PUT",
       body: JSON.stringify({
-        name: "CGW Relay Updated",
-        prefix: "cgw",
+        name: "Relay Updated",
+        prefix: "relay",
         apiType: "chat",
         baseUrl: "http://127.0.0.1:20129/v1",
         replayPolicy: DEFAULT_REPLAY_POLICY,
@@ -123,7 +123,7 @@ describe("provider replay policy", () => {
       body: JSON.stringify({
         provider: createdBody.node.id,
         apiKey: "test-key",
-        name: "CGW Connection",
+        name: "Connection",
         defaultModel: "gpt-6.1-sol",
       }),
     }));

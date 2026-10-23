@@ -33,11 +33,11 @@ describe("privacy-safe request correlation", () => {
   it("gives identical prompts the same digest without retaining prompt text", () => {
     const first = buildRequestCorrelation({
       serverRequestId: "server-request-1",
-      body: { model: "combo-web-high", messages: [{ role: "user", content: "same prompt" }] },
+      body: { model: "maintained-combo", messages: [{ role: "user", content: "same prompt" }] },
     });
     const second = buildRequestCorrelation({
       serverRequestId: "server-request-2",
-      body: { model: "combo-web-medium", messages: [{ role: "user", content: "same prompt" }] },
+      body: { model: "maintained-combo", messages: [{ role: "user", content: "same prompt" }] },
     });
 
     expect(first.requestId).toBe("server-request-1");

@@ -75,45 +75,5 @@ describe("pingModelByKind reasoning models (#3010)", () => {
     expect(result.ok).toBe(true);
   });
 
-  it("checks CGW models with a real inference response", async () => {
-    fetchMock.mockResolvedValue(jsonResponse({
-      model: "cgw/gpt-5.6-sol",
-      choices: [{ message: { content: "CGW probe ok" } }],
-    }));
 
-    const result = await pingModelByKind("cgw/gpt-5.6-sol", "llm", "http://127.0.0.1:20127");
-
-    expect(result.ok).toBe(true);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock.mock.calls[0][0]).toBe("http://127.0.0.1:20127/api/v1/chat/completions");
-    expect(fetchMock.mock.calls[0][1].method).toBe("POST");
-    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({
-      model: "cgw/gpt-5.6-sol",
-      messages: [{ role: "user", content: "hi" }],
-    });
-  });
-
-  it("fails a CGW inference check when the provider returns a different model", async () => {
-    fetchMock.mockResolvedValue(jsonResponse({
-      model: "cgw/gpt-5.6-sol",
-      choices: [{ message: { content: "wrong model" } }],
-    }));
-
-    const result = await pingModelByKind("cgw/gpt-6.1-sol", "llm", "http://127.0.0.1:20127");
-
-    expect(result.ok).toBe(false);
-    expect(result.error).toMatch(/expected cgw\/gpt-6\.1-sol/);
-    expect(fetchMock.mock.calls[0][0]).toBe("http://127.0.0.1:20127/api/v1/chat/completions");
-  });
-
-  it("accepts the unprefixed public model returned by 9Router's CGW adapter", async () => {
-    fetchMock.mockResolvedValue(jsonResponse({
-      model: "gpt-5.6-sol",
-      choices: [{ message: { content: "CGW probe ok" } }],
-    }));
-
-    const result = await pingModelByKind("cgw/gpt-5.6-sol", "llm", "http://127.0.0.1:20127");
-
-    expect(result.ok).toBe(true);
-  });
 });

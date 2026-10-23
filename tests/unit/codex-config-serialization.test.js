@@ -21,14 +21,14 @@ describe("Codex config TOML serialization", () => {
       model_providers: {
         "9router": {
           wire_api_by_model: {
-            "cgw/gpt-6.1-sol": { wire_api: "responses" },
+            "provider/gpt-6.1-sol": { wire_api: "responses" },
           },
         },
         openai: { name: "OpenAI" },
       },
     });
 
-    expect(output).toContain('[model_providers."9router".wire_api_by_model."cgw/gpt-6.1-sol"]');
+    expect(output).toContain('[model_providers."9router".wire_api_by_model."provider/gpt-6.1-sol"]');
     expect(output).toContain("[model_providers.openai]");
     expect(output).not.toContain("[model_providers.9router");
   });
