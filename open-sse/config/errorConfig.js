@@ -6,6 +6,7 @@ export const ERROR_TYPES = {
   403: { type: "permission_error", code: "insufficient_quota" },
   404: { type: "invalid_request_error", code: "model_not_found" },
   406: { type: "invalid_request_error", code: "model_not_supported" },
+  410: { type: "invalid_request_error", code: "RETIRED_MODEL" },
   429: { type: "rate_limit_error", code: "rate_limit_exceeded" },
   500: { type: "server_error", code: "internal_server_error" },
   502: { type: "server_error", code: "bad_gateway" },

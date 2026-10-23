@@ -27,6 +27,20 @@ export function assertSupportedCombo(combo) {
   return combo;
 }
 
+export function isRetiredModelError(error) {
+  return error?.code === "RETIRED_MODEL" && error?.status === 410;
+}
+
+export function retiredModelPayload(error) {
+  return {
+    error: {
+      message: error?.message || "Model or combo is retired and unsupported",
+      type: "invalid_request_error",
+      code: "RETIRED_MODEL",
+    },
+  };
+}
+
 export function isRetiredModelName(value) {
   return RETIRED_MODEL_NAMES.has(value);
 }

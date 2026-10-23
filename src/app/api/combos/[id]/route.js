@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { getComboById, updateCombo, deleteCombo, getComboByName } from "@/lib/localDb";
 import { resetComboRotation } from "open-sse/services/combo.js";
+import { isRetiredModelError, retiredModelPayload } from "open-sse/config/retiredModels.js";
 
 // Validate combo name: only a-z, A-Z, 0-9, -, _
 const VALID_NAME_REGEX = /^[a-zA-Z0-9_.\-]+$/;
 
 function retiredModelResponse(error) {
-  if (error?.code !== "RETIRED_MODEL") return null;
-  return NextResponse.json({ error: error.message }, { status: 410 });
+  if (!isRetiredModelError(error)) return null;
+  return NextResponse.json(retiredModelPayload(error), { status: 410 });
 }
 
 // GET /api/combos/[id] - Get combo by ID
@@ -22,6 +23,8 @@ export async function GET(request, { params }) {
     
     return NextResponse.json(combo);
   } catch (error) {
+    const retired = retiredModelResponse(error);
+    if (retired) return retired;
     console.log("Error fetching combo:", error);
     return NextResponse.json({ error: "Failed to fetch combo" }, { status: 500 });
   }
@@ -60,6 +63,8 @@ export async function PUT(request, { params }) {
 
     return NextResponse.json(combo);
   } catch (error) {
+    const retired = retiredModelResponse(error);
+    if (retired) return retired;
     console.log("Error updating combo:", error);
     return NextResponse.json({ error: "Failed to update combo" }, { status: 500 });
   }
@@ -80,6 +85,8 @@ export async function DELETE(request, { params }) {
     
     return NextResponse.json({ success: true });
   } catch (error) {
+    const retired = retiredModelResponse(error);
+    if (retired) return retired;
     console.log("Error deleting combo:", error);
     return NextResponse.json({ error: "Failed to delete combo" }, { status: 500 });
   }

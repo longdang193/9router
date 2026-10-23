@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { getCombos, createCombo, getComboByName } from "@/lib/localDb";
+import { isRetiredModelError, retiredModelPayload } from "open-sse/config/retiredModels.js";
 
 export const dynamic = "force-dynamic";
 
 function retiredModelResponse(error) {
-  if (error?.code !== "RETIRED_MODEL") return null;
-  return NextResponse.json({ error: error.message }, { status: 410 });
+  if (!isRetiredModelError(error)) return null;
+  return NextResponse.json(retiredModelPayload(error), { status: 410 });
 }
 
 // Validate combo name: only a-z, A-Z, 0-9, -, _
@@ -17,6 +18,8 @@ export async function GET() {
     const combos = await getCombos();
     return NextResponse.json({ combos });
   } catch (error) {
+    const retired = retiredModelResponse(error);
+    if (retired) return retired;
     console.log("Error fetching combos:", error);
     return NextResponse.json({ error: "Failed to fetch combos" }, { status: 500 });
   }
@@ -47,6 +50,8 @@ export async function POST(request) {
 
     return NextResponse.json(combo, { status: 201 });
   } catch (error) {
+    const retired = retiredModelResponse(error);
+    if (retired) return retired;
     console.log("Error creating combo:", error);
     return NextResponse.json({ error: "Failed to create combo" }, { status: 500 });
   }
