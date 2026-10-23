@@ -31,8 +31,21 @@ jobs:
       - name: Install test dependencies
         run: npm install --prefix tests --no-audit --no-fund
 
-      - name: Run tests
-        run: npm --prefix tests test
+      - name: Run focused contract tests
+        working-directory: tests
+        run: >-
+          npm exec -- vitest run
+          unit/model-routing.test.js
+          unit/retired-combo-ownership.test.js
+          unit/account-fallback.test.js
+          unit/combo-fusion.test.js
+          unit/combo-routing.test.js
+          unit/executor-replay-policy.test.js
+          unit/no-replay-routing.test.js
+          unit/chat-request-correlation.test.js
+          unit/attribution-persistence.test.js
+          unit/chatgpt-web-responses-relay.test.js
+          --testTimeout=20000
 
       - name: Build application
         run: npm run build

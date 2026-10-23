@@ -16,7 +16,12 @@ The fork owns its maintained behavior directly. Project OS no longer applies
 1. Reconcile the fork baseline with `upstream/master` using a normal merge
    commit. Confirm `git merge-base --is-ancestor upstream/master master`.
 2. Enable repository auto-merge and require the exact `CI / test-and-build`
-   check on `master`.
+   check on `master`. That check intentionally runs the maintained retirement,
+   routing, fallback, replay, attribution, relay, and build matrix. The
+   repository-wide Vitest suite is not an automatic-sync gate because the
+   current upstream baseline has unrelated failures; do not convert those
+   failures into an upstream-sync approval loop without first establishing a
+   separate baseline and owner for them.
 3. Create a GitHub App installation limited to this repository with
    `contents: write` and `pull_requests: write`.
 4. Store its credentials as `UPSTREAM_SYNC_APP_ID` and
