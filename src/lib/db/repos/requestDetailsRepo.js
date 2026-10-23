@@ -133,11 +133,14 @@ async function flushToDatabase() {
             providerResponse: redactPayload(item.providerResponse),
             response: redactPayload(item.response),
             pxpipe: item.pxpipe || undefined,
+            routerRecordId: item.routerRecordId || null,
+            experimentRequestId: item.experimentRequestId || null,
+            providerAttemptId: item.providerAttemptId || null,
           };
 
           db.run(
-            `INSERT INTO requestDetails(id, timestamp, provider, model, connectionId, status, data) VALUES(?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET timestamp = excluded.timestamp, provider = excluded.provider, model = excluded.model, connectionId = excluded.connectionId, status = excluded.status, data = excluded.data`,
-            [record.id, record.timestamp, record.provider, record.model, record.connectionId, record.status, stringifyJson(record)]
+            `INSERT INTO requestDetails(id, timestamp, provider, model, connectionId, status, data, routerRecordId, experimentRequestId, providerAttemptId) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET timestamp = excluded.timestamp, provider = excluded.provider, model = excluded.model, connectionId = excluded.connectionId, status = excluded.status, data = excluded.data, routerRecordId = excluded.routerRecordId, experimentRequestId = excluded.experimentRequestId, providerAttemptId = excluded.providerAttemptId`,
+            [record.id, record.timestamp, record.provider, record.model, record.connectionId, record.status, stringifyJson(record), record.routerRecordId, record.experimentRequestId, record.providerAttemptId]
           );
         }
 
