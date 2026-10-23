@@ -54,7 +54,7 @@ export class BaseExecutor {
     return baseUrls[urlIndex] || baseUrls[0] || this.config.baseUrl;
   }
 
-  buildHeaders(credentials, stream = true, url = null, model = null, correlation = null) {
+  buildHeaders(credentials, stream = true, url = null, model = null, bodyOrCorrelation = null) {
     const headers = {
       "Content-Type": "application/json",
       ...this.config.headers
@@ -83,6 +83,9 @@ export class BaseExecutor {
       headers["Accept"] = "text/event-stream";
     }
 
+    const correlation = bodyOrCorrelation?.requestId && bodyOrCorrelation?.promptFingerprint
+      ? bodyOrCorrelation
+      : null;
     const target = typeof url === "string" ? new URL(url) : null;
     const isLoopback = target && ["localhost", "127.0.0.1", "::1"].includes(target.hostname);
     if (isLoopback && SAFE_REQUEST_ID.test(correlation?.requestId || "") && SAFE_FINGERPRINT.test(correlation?.promptFingerprint || "")) {
@@ -115,7 +118,7 @@ export class BaseExecutor {
     return { status: response.status, message: bodyText || `HTTP ${response.status}` };
   }
 
-  async execute({ model, body, stream, credentials, signal, log, proxyOptions = null, replayPolicy, dispatchContext = null }) {
+  async execute({ model, body, stream, credentials, signal, log, proxyOptions = null, providerOverrides = null, replayPolicy, dispatchContext = null }) {
     const normalizedReplayPolicy = readReplayPolicy(replayPolicy);
     const requestDispatch = dispatchContext || createDispatchContext();
     if (!canReplayRequest(normalizedReplayPolicy, requestDispatch)) {
@@ -155,7 +158,17 @@ export class BaseExecutor {
     for (let urlIndex = 0; urlIndex < fallbackCount; urlIndex++) {
       const url = this.buildUrl(model, stream, urlIndex, credentials, body);
       const transformedBody = this.transformRequest(model, body, stream, credentials);
-      const headers = this.buildHeaders(credentials, stream, url, model, requestDispatch.correlation);
+      const headers = this.buildHeaders(credentials, stream, url, model, transformedBody);
+      // User per-provider override wins over registry headers (blocked names filtered at the API)
+      if (providerOverrides?.headers) Object.assign(headers, providerOverrides.headers);
+      const target = typeof url === "string" ? new URL(url) : null;
+      const isLoopback = target && ["localhost", "127.0.0.1", "::1"].includes(target.hostname);
+      if (isLoopback
+        && SAFE_REQUEST_ID.test(requestDispatch.correlation?.requestId || "")
+        && SAFE_FINGERPRINT.test(requestDispatch.correlation?.promptFingerprint || "")) {
+        headers["x-9router-request-id"] = requestDispatch.correlation.requestId;
+        headers["x-9router-prompt-fingerprint"] = requestDispatch.correlation.promptFingerprint;
+      }
 
       if (!retryAttemptsByUrl[urlIndex]) retryAttemptsByUrl[urlIndex] = 0;
 
