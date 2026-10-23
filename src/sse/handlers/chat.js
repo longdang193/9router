@@ -28,6 +28,7 @@ import { stripModelContextMarker } from "open-sse/utils/modelMarkers.js";
 import { resolveReplayPolicy } from "open-sse/services/provider.js";
 import { NON_REPLAYABLE, REPLAYABLE } from "open-sse/config/replayPolicy.js";
 import { hasDispatchStarted } from "open-sse/utils/dispatchState.js";
+import { isRetiredModelError } from "open-sse/config/retiredModels.js";
 
 async function resolveFusionReplayPolicy(modelStr) {
   const nestedModels = await getComboModels(modelStr);
@@ -51,7 +52,11 @@ export async function handleChat(request, clientRawRequest = null, serverRequest
   try {
     const response = await handleChatInternal(request, clientRawRequest, serverRequestId);
     return correlateResponse(response, serverRequestId);
-  } catch {
+  } catch (error) {
+    if (isRetiredModelError(error)) {
+      return correlateResponse(errorResponse(HTTP_STATUS.GONE, error.message, { code: "RETIRED_MODEL" }), serverRequestId);
+    }
+    if (error?.name === "AbortError") throw error;
     return correlateResponse(errorResponse(HTTP_STATUS.SERVER_ERROR, "Chat request failed"), serverRequestId);
   }
 }

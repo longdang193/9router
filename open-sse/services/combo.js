@@ -7,8 +7,8 @@ import { unavailableResponse } from "../utils/error.js";
 import { getCapabilitiesForModel } from "../providers/capabilities.js";
 import { extractTextContent } from "../translator/formats/gemini.js";
 import { NON_REPLAYABLE } from "../config/replayPolicy.js";
+import { isRetiredModelError } from "../config/retiredModels.js";
 import { hasDispatchStarted } from "../utils/dispatchState.js";
-import { assertSupportedModel } from "../config/retiredModels.js";
 
 // Hard capabilities = input modalities; missing one drops request data (e.g. image
 // stripped). Must be prioritized. Soft (e.g. search) only degrades a feature.
@@ -396,6 +396,7 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
       log.warn("COMBO", `Model ${modelStr} failed, trying next`, { status: result.status });
     } catch (error) {
       // Catch unexpected exceptions to ensure fallback continues
+      if (isRetiredModelError(error) || error?.name === "AbortError") throw error;
       lastError = error.message || String(error);
       if (!lastStatus) lastStatus = 500;
       if (error.replayPolicy === NON_REPLAYABLE && hasDispatchStarted(error.dispatchState)) {

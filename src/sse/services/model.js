@@ -2,7 +2,7 @@
 import { getModelAliases, getComboByName, getProviderNodes, getProviderConnections } from "@/lib/localDb";
 import { parseModel as parseModelCore, resolveModelAliasFromMap, getModelInfoCore } from "open-sse/services/model.js";
 import REGISTRY from "open-sse/providers/registry/index.js";
-import { assertSupportedModel } from "open-sse/config/retiredModels.js";
+import { assertSupportedModel, RetiredModelError } from "open-sse/config/retiredModels.js";
 
 // Local provider alias overrides (HMR-friendly, applied on top of open-sse map)
 const LOCAL_PROVIDER_ALIASES = {
@@ -52,6 +52,67 @@ export async function resolveModelAlias(alias) {
   return resolveModelAliasFromMap(alias, aliases);
 }
 
+async function resolveAliasTarget(alias) {
+  const aliases = await getModelAliases();
+  const seen = new Set();
+  let current = alias;
+
+  while (Object.prototype.hasOwnProperty.call(aliases, current)) {
+    if (seen.has(current)) {
+      const error = new Error(`Model alias cycle detected at '${current}'`);
+      error.code = "MODEL_ALIAS_CYCLE";
+      error.status = 400;
+      throw error;
+    }
+    seen.add(current);
+    const rawTarget = aliases[current];
+    const target = typeof rawTarget === "string"
+      ? rawTarget
+      : rawTarget && typeof rawTarget === "object" && rawTarget.provider && rawTarget.model
+        ? `${rawTarget.provider}/${rawTarget.model}`
+        : null;
+    if (!target) {
+      const error = new Error(`Invalid model alias target for '${current}'`);
+      error.code = "INVALID_MODEL_ALIAS";
+      error.status = 400;
+      throw error;
+    }
+    assertSupportedModel(target);
+    if (!target.includes("/")) {
+      current = target;
+      continue;
+    }
+    const parsed = parseModelCore(target);
+    const normalized = `${parsed.provider}/${parsed.model}`;
+    assertSupportedModel(normalized);
+    return { provider: parsed.provider, model: parsed.model };
+  }
+
+  return null;
+}
+
+function assertResolvedTarget(modelInfo) {
+  const target = modelInfo?.provider
+    ? `${modelInfo.provider}/${modelInfo.model}`
+    : modelInfo?.model;
+  assertSupportedModel(target);
+  return modelInfo;
+}
+
+function assertExecutableCombo(combo) {
+  if (!combo) return combo;
+  if (combo.validity === "retired") {
+    throw new RetiredModelError(combo.invalidModels?.[0] || combo.name);
+  }
+  if (combo.validity === "malformed") {
+    const error = new Error(`Combo '${combo.name}' is malformed and cannot be executed`);
+    error.code = "MALFORMED_COMBO";
+    error.status = 400;
+    throw error;
+  }
+  return combo;
+}
+
 /**
  * Get full model info (parse or resolve)
  */
@@ -87,12 +148,15 @@ export async function getModelInfo(modelStr) {
   // This prevents combo names from being incorrectly routed to providers
   const combo = await getComboByName(parsed.model);
   if (combo) {
+    assertExecutableCombo(combo);
     // Return null provider to signal this should be handled as combo
     // The caller (handleChat) will detect this and handle it as combo
     return { provider: null, model: parsed.model };
   }
 
-  return getModelInfoCore(modelStr, getModelAliases);
+  const aliasTarget = await resolveAliasTarget(parsed.model);
+  if (aliasTarget) return assertResolvedTarget(aliasTarget);
+  return assertResolvedTarget(await getModelInfoCore(modelStr, getModelAliases));
 }
 
 /**
@@ -105,6 +169,7 @@ export async function getComboModels(modelStr) {
   if (modelStr.includes("/")) return null;
 
   const combo = await getComboByName(modelStr);
+  assertExecutableCombo(combo);
   if (combo && combo.models && combo.models.length > 0) {
     return combo.models;
   }
