@@ -29,10 +29,16 @@ export function buildErrorBody(statusCode, message, diagnostics = {}) {
  * @param {string} message - Error message
  * @returns {Response} HTTP Response object
  */
-export function errorResponse(statusCode, message, diagnostics = {}, metadata = {}) {
+export function errorResponse(statusCode, message, diagnosticsOrHeaders = {}, metadata = {}) {
+  const diagnosticKeys = ["type", "param", "code", "request_id"];
+  const isDiagnostics = diagnosticsOrHeaders && typeof diagnosticsOrHeaders === "object"
+    && diagnosticKeys.some((key) => diagnosticsOrHeaders[key] !== undefined);
+  const diagnostics = isDiagnostics ? diagnosticsOrHeaders : {};
+  const extraHeaders = isDiagnostics ? {} : (diagnosticsOrHeaders || {});
   const headers = {
     "Content-Type": "application/json",
-    "Access-Control-Allow-Origin": "*"
+    "Access-Control-Allow-Origin": "*",
+    ...extraHeaders,
   };
   if (metadata.replayPolicy === "non-replayable" && metadata.dispatchState && metadata.dispatchState !== "pre-dispatch") {
     headers["x-9router-no-replay"] = "1";
@@ -130,8 +136,14 @@ function safeRequestId(response, value) {
  * @param {number} [resetsAtMs] - Optional precise cooldown expiry (ms epoch) for provider-specific quota errors
  * @returns {{ success: false, status: number, error: string, response: Response, resetsAtMs?: number }}
  */
-export function createErrorResult(statusCode, message, resetsAtMs, diagnostics = {}, metadata = {}) {
+export function createErrorResult(statusCode, message, resetsAtMs, diagnosticsOrHeaders = {}, metadata = {}, extraHeaders = null) {
+  const diagnosticKeys = ["type", "param", "code", "request_id"];
+  const isDiagnostics = diagnosticsOrHeaders && typeof diagnosticsOrHeaders === "object"
+    && diagnosticKeys.some((key) => diagnosticsOrHeaders[key] !== undefined);
+  const diagnostics = isDiagnostics ? diagnosticsOrHeaders : {};
+  const responseHeaders = isDiagnostics ? (extraHeaders || {}) : (diagnosticsOrHeaders || {});
   const response = errorResponse(statusCode, message, diagnostics, metadata);
+  for (const [key, value] of Object.entries(responseHeaders)) response.headers.set(key, value);
   return {
     success: false,
     status: statusCode,
@@ -151,7 +163,7 @@ export function createErrorResult(statusCode, message, resetsAtMs, diagnostics =
  * @param {string} retryAfterHuman - Human-readable retry info e.g. "reset after 30s"
  * @returns {Response}
  */
-export function unavailableResponse(statusCode, message, retryAfter, retryAfterHuman) {
+export function unavailableResponse(statusCode, message, retryAfter, retryAfterHuman, extraHeaders = null) {
   const retryAfterSec = Math.max(Math.ceil((new Date(retryAfter).getTime() - Date.now()) / 1000), 1);
   const msg = `${message} (${retryAfterHuman})`;
   return new Response(
@@ -159,8 +171,10 @@ export function unavailableResponse(statusCode, message, retryAfter, retryAfterH
     {
       status: statusCode,
       headers: {
+        ...extraHeaders,
         "Content-Type": "application/json",
-        "Retry-After": String(retryAfterSec)
+        // Intentionally mis-cased to prevent duplicate headers
+        "retry-after": String(retryAfterSec)
       }
     }
   );
