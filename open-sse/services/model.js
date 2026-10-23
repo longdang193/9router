@@ -1,4 +1,5 @@
 import REGISTRY from "../providers/registry/index.js";
+import { assertSupportedModelInfo, RETIRED_MODEL_POLICY } from "../config/retiredModels.js";
 
 // Alias→id derived from registry single-source: id→id, alias→id, aliases[]→id.
 // Media-only providers without a registry transport entry keep explicit aliases here.
@@ -11,6 +12,9 @@ const MEDIA_ONLY_ALIASES = {
 };
 
 const ALIAS_TO_PROVIDER_ID = { ...MEDIA_ONLY_ALIASES };
+for (const [alias, provider] of Object.entries(RETIRED_MODEL_POLICY.providerAliases)) {
+  ALIAS_TO_PROVIDER_ID[alias] = provider;
+}
 for (const entry of REGISTRY) {
   ALIAS_TO_PROVIDER_ID[entry.id] = entry.id;
   if (entry.alias) ALIAS_TO_PROVIDER_ID[entry.alias] = entry.id;
@@ -42,7 +46,10 @@ export function parseModel(modelStr) {
     const providerOrAlias = modelStr.slice(0, firstSlash);
     const model = modelStr.slice(firstSlash + 1);
     const provider = resolveProviderAlias(providerOrAlias);
-    return { provider, model, isAlias: false, providerAlias: providerOrAlias };
+    return assertSupportedModelInfo(
+      { provider, model, isAlias: false, providerAlias: providerOrAlias },
+      modelStr,
+    );
   }
 
   // Alias format (model alias, not provider alias)
@@ -69,18 +76,18 @@ export function resolveModelAliasFromMap(alias, aliases) {
   if (typeof resolved === "string" && resolved.includes("/")) {
     const firstSlash = resolved.indexOf("/");
     const providerOrAlias = resolved.slice(0, firstSlash);
-    return {
+    return assertSupportedModelInfo({
       provider: resolveProviderAlias(providerOrAlias),
       model: resolved.slice(firstSlash + 1),
-    };
+    }, resolved);
   }
 
   // Or object { provider, model }
   if (typeof resolved === "object" && resolved.provider && resolved.model) {
-    return {
+    return assertSupportedModelInfo({
       provider: resolveProviderAlias(resolved.provider),
       model: resolved.model,
-    };
+    }, `${resolved.provider}/${resolved.model}`);
   }
 
   return null;
@@ -116,10 +123,10 @@ export async function getModelInfoCore(modelStr, aliasesOrGetter) {
   }
 
   // Fallback: infer provider from model name prefix
-  return {
+  return assertSupportedModelInfo({
     provider: inferProviderFromModelName(parsed.model),
     model: parsed.model,
-  };
+  }, modelStr);
 }
 
 // Config-driven prefix → provider inference (first match wins, fallback "openai").

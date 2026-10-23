@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "owner": "9router/open-sse/config/retiredModels.js",
+  "retiredModelNames": [
+    "combo-web-high",
+    "combo-web-medium"
+  ],
+  "retiredModelPrefixes": [
+    "cgw/",
+    "chatgpt-web/",
+    "cg/"
+  ],
+  "retiredProviderIds": [
+    "chatgpt-web"
+  ],
+  "providerAliases": {
+    "cg": "chatgpt-web"
+  }
+}

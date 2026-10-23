@@ -16,6 +16,7 @@ import { updateProviderCredentials, checkAndRefreshToken } from "../services/tok
 import { handleComboChat } from "open-sse/services/combo.js";
 import * as log from "../utils/logger.js";
 import { saveRequestUsage } from "@/lib/usageDb.js";
+import { isRetiredModelError } from "open-sse/config/retiredModels.js";
 
 // Providers that don't require credentials (noAuth)
 const NO_AUTH_PROVIDERS = new Set(["sdwebui", "comfyui", "veoaifree-web"]);
@@ -45,6 +46,17 @@ function recordImageRequestUsage({ provider, model, connectionId, apiKey, endpoi
  * @param {Request} request
  */
 export async function handleImageGeneration(request) {
+  try {
+    return await handleImageGenerationInternal(request);
+  } catch (error) {
+    if (isRetiredModelError(error)) {
+      return errorResponse(HTTP_STATUS.GONE, error.message, { code: "RETIRED_MODEL" });
+    }
+    throw error;
+  }
+}
+
+async function handleImageGenerationInternal(request) {
   let body;
   try {
     body = await request.json();

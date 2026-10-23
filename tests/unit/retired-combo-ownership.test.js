@@ -27,7 +27,7 @@ afterEach(() => {
 });
 
 describe("retired combo ownership", () => {
-  it.each(["combo-web-high", "combo-web-medium", "cgw/gpt-5.6-sol", "chatgpt-web/gpt-5.6-sol"])("rejects retired model %s on combo creation", async (model) => {
+  it.each(["combo-web-high", "combo-web-medium", "cgw/gpt-5.6-sol", "chatgpt-web/gpt-5.6-sol", "cg/gpt-5.6-sol"])("rejects retired model %s on combo creation", async (model) => {
     await expect(combos.createCombo({ name: "maintained-combo", models: [model] })).rejects.toMatchObject({ code: "RETIRED_MODEL", status: 410 });
   });
 
@@ -93,6 +93,41 @@ describe("retired combo ownership", () => {
     const deleted = await DELETE(new Request("http://localhost/api/combos/boundary-stale", { method: "DELETE" }), routeContext);
     expect(deleted.status).toBe(200);
     await expect(deleted.json()).resolves.toEqual({ success: true });
+  });
+
+  it("hides retired and malformed rows from the executable model catalog", async () => {
+    const adapter = await db.getAdapter();
+    const now = new Date().toISOString();
+    adapter.run("INSERT INTO combos(id, name, kind, models, createdAt, updatedAt) VALUES(?, ?, ?, ?, ?, ?)", ["catalog-stale", "legacy-catalog", "fallback", JSON.stringify(["cg/gpt-5.6-sol"]), now, now]);
+    adapter.run("INSERT INTO combos(id, name, kind, models, createdAt, updatedAt) VALUES(?, ?, ?, ?, ?, ?)", ["catalog-malformed", "broken-catalog", "fallback", "not-json", now, now]);
+    const { buildModelsList } = await import("../../src/app/api/v1/models/route.js");
+    const models = await buildModelsList(["llm"]);
+    expect(models.some((model) => ["legacy-catalog", "broken-catalog"].includes(model.id))).toBe(false);
+  });
+
+  it("rejects retired targets before persisting model aliases", async () => {
+    const { PUT } = await import("../../src/app/api/models/alias/route.js");
+    const response = await PUT(new Request("http://localhost/api/models/alias", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ alias: "retired-alias", model: "cg/gpt-5.6-sol" }),
+    }));
+    expect(response.status).toBe(410);
+    await expect(response.json()).resolves.toMatchObject({ error: { code: "RETIRED_MODEL" } });
+    await expect((await import("@/lib/db/repos/aliasRepo.js")).getModelAliases()).resolves.not.toHaveProperty("retired-alias");
+  });
+
+  it("returns the retired-model contract from image generation", async () => {
+    const { updateSettings } = await import("@/lib/localDb");
+    await updateSettings({ requireApiKey: false });
+    const { POST } = await import("../../src/app/api/v1/images/generations/route.js");
+    const response = await POST(new Request("http://localhost/v1/images/generations", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ model: "cg/gpt-image-2", prompt: "test" }),
+    }));
+    expect(response.status).toBe(410);
+    await expect(response.json()).resolves.toMatchObject({ error: { code: "RETIRED_MODEL" } });
   });
 
   it("does not fall through to another model after a retired-model exception", async () => {

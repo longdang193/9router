@@ -2,7 +2,7 @@
 import { getModelAliases, getComboByName, getProviderNodes, getProviderConnections } from "@/lib/localDb";
 import { parseModel as parseModelCore, resolveModelAliasFromMap, getModelInfoCore } from "open-sse/services/model.js";
 import REGISTRY from "open-sse/providers/registry/index.js";
-import { assertSupportedModel, RetiredModelError } from "open-sse/config/retiredModels.js";
+import { assertSupportedModel, assertSupportedModelInfo, RetiredModelError } from "open-sse/config/retiredModels.js";
 
 // Local provider alias overrides (HMR-friendly, applied on top of open-sse map)
 const LOCAL_PROVIDER_ALIASES = {
@@ -39,9 +39,12 @@ export function parseModel(modelStr) {
   assertSupportedModel(modelStr);
   const parsed = parseModelCore(modelStr);
   if (parsed?.providerAlias && LOCAL_PROVIDER_ALIASES[parsed.providerAlias]) {
-    return { ...parsed, provider: LOCAL_PROVIDER_ALIASES[parsed.providerAlias] };
+    return assertSupportedModelInfo(
+      { ...parsed, provider: LOCAL_PROVIDER_ALIASES[parsed.providerAlias] },
+      modelStr,
+    );
   }
-  return parsed;
+  return assertSupportedModelInfo(parsed, modelStr);
 }
 
 /**
@@ -85,7 +88,7 @@ async function resolveAliasTarget(alias) {
     const parsed = parseModelCore(target);
     const normalized = `${parsed.provider}/${parsed.model}`;
     assertSupportedModel(normalized);
-    return { provider: parsed.provider, model: parsed.model };
+    return assertSupportedModelInfo({ provider: parsed.provider, model: parsed.model }, target);
   }
 
   return null;
@@ -95,8 +98,7 @@ function assertResolvedTarget(modelInfo) {
   const target = modelInfo?.provider
     ? `${modelInfo.provider}/${modelInfo.model}`
     : modelInfo?.model;
-  assertSupportedModel(target);
-  return modelInfo;
+  return assertSupportedModelInfo(modelInfo, target);
 }
 
 function assertExecutableCombo(combo) {
