@@ -27,7 +27,9 @@ const content = `${JSON.stringify(projection, null, 2)}\n`;
 
 const targets = [
   [routerRoot, "open-sse/config/retired-model-policy.json"],
+  [routerRoot, "scripts/retired-model-policy.json"],
   [args.get("project-os"), "repo_config/retired-model-policy.json"],
+  [args.get("project-os"), "scripts/retired-model-policy.json"],
   [args.get("lightrsi"), "components/presets/tokenpilot/retired-model-policy.json"],
 ].filter(([root]) => root);
 
