@@ -35,6 +35,7 @@ import { defaultClaudeToolType, shouldDefaultClaudeToolType } from "../translato
 import { resolveSessionId } from "../utils/sessionManager.js";
 import { createDispatchContext, canReplayRequest, getDispatchState } from "../utils/dispatchState.js";
 import { NON_REPLAYABLE } from "../config/replayPolicy.js";
+import { createRequestAttribution } from "./chatCore/attribution.js";
 
 /**
  * Core chat handler - shared between SSE and Worker
@@ -66,6 +67,7 @@ export function stripContinuityFields(body) {
 export async function handleChatCore({ body, modelInfo, credentials, log, onCredentialsRefreshed, onRequestSuccess, onDisconnect, clientRawRequest, connectionId, userAgent, apiKey, ccFilterNaming, rtkEnabled, headroomEnabled, headroomUrl, headroomCompressUserMessages, headroomTimeoutMs, cavemanEnabled, cavemanLevel, ponytailEnabled, ponytailLevel, customPromptEnabled, customPrompt, pxpipeEnabled, pxpipeMinChars, pxpipeTimeoutMs, pxpipeTransform, onPxpipeEvent, sourceFormatOverride, providerThinking, providerOverrides }) {
   const { provider, model } = modelInfo;
   const requestStartTime = Date.now();
+  const attribution = createRequestAttribution(clientRawRequest?.headers);
   // Stable per-session color so all lines of one CLI conversation share a tag
   const sessionSeed = clientRawRequest?.serverRequestId || (() => {
     try {
@@ -429,6 +431,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     trackPendingRequest(model, provider, connectionId, false, true);
     appendRequestLog({ model, provider, connectionId, status: `FAILED ${error.name === "AbortError" ? 499 : HTTP_STATUS.BAD_GATEWAY}` }).catch(() => { });
     saveRequestDetail(buildRequestDetail({
+      ...attribution,
       provider, model, connectionId,
       latency: { ttft: 0, total: Date.now() - requestStartTime },
       tokens: { prompt_tokens: 0, completion_tokens: 0 },
@@ -515,6 +518,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     const { statusCode, message, resetsAtMs } = diagnostics;
     appendRequestLog({ model, provider, connectionId, status: `FAILED ${statusCode}` }).catch(() => { });
     saveRequestDetail(buildRequestDetail({
+      ...attribution,
       provider, model, connectionId,
       latency: { ttft: 0, total: Date.now() - requestStartTime },
       tokens: { prompt_tokens: 0, completion_tokens: 0 },
@@ -538,7 +542,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     }, upstreamResponseHeaders(providerResponse.headers));
   }
 
-  const sharedCtx = { provider, model, body, stream, translatedBody, finalBody, requestStartTime, connectionId, apiKey, clientRawRequest, correlation, onRequestSuccess, pxpipe: pxpipeSummary, reqTag, log, requestDetailId };
+  const sharedCtx = { provider, model, body, stream, translatedBody, finalBody, requestStartTime, connectionId, apiKey, clientRawRequest, correlation, onRequestSuccess, pxpipe: pxpipeSummary, reqTag, log, requestDetailId, ...attribution };
   const appendLog = (extra) => appendRequestLog({ model, provider, connectionId, ...extra }).catch(() => { });
   const trackDone = () => trackPendingRequest(model, provider, connectionId, false);
 

@@ -270,13 +270,14 @@ export async function saveRequestUsage(entry) {
            AND COALESCE(model, '') = COALESCE(?, '')
            AND COALESCE(connectionId, '') = COALESCE(?, '')
            AND COALESCE(apiKey, '') = COALESCE(?, '')
+           AND COALESCE(routerRecordId, '') = COALESCE(?, '')
            AND promptTokens = ?
            AND completionTokens = ?
            ${correlationClause}
          ORDER BY id DESC LIMIT 1`,
         [
           entry.timestamp, entry.provider || null, entry.model || null,
-          entry.connectionId || null, entry.apiKey || null,
+          entry.connectionId || null, entry.apiKey || null, entry.routerRecordId || null,
           promptTokens, completionTokens,
           ...(requestDetailId ? [requestDetailId] : []),
         ]
@@ -294,12 +295,13 @@ export async function saveRequestUsage(entry) {
       }
 
       db.run(
-        `INSERT INTO usageHistory(timestamp, provider, model, connectionId, apiKey, endpoint, promptTokens, completionTokens, cost, status, tokens, meta) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO usageHistory(timestamp, provider, model, connectionId, apiKey, endpoint, promptTokens, completionTokens, cost, status, tokens, meta, routerRecordId, experimentRequestId, providerAttemptId) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           entry.timestamp, entry.provider || null, entry.model || null,
           entry.connectionId || null, entry.apiKey || null, entry.endpoint || null,
           promptTokens, completionTokens, entry.cost || 0, entry.status || "ok",
-          stringifyJson(tokens), stringifyJson(meta),
+          stringifyJson(tokens), stringifyJson(meta), entry.routerRecordId || null,
+          entry.experimentRequestId || null, entry.providerAttemptId || null,
         ]
       );
 
@@ -339,12 +341,13 @@ export async function getUsageHistory(filter = {}) {
   if (filter.endDate) { conds.push("timestamp <= ?"); params.push(new Date(filter.endDate).toISOString()); }
 
   const where = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
-  const rows = db.all(`SELECT timestamp, provider, model, connectionId, apiKey, endpoint, cost, status, tokens FROM usageHistory ${where} ORDER BY id ASC`, params);
+  const rows = db.all(`SELECT timestamp, provider, model, connectionId, apiKey, endpoint, cost, status, tokens, routerRecordId, experimentRequestId, providerAttemptId FROM usageHistory ${where} ORDER BY id ASC`, params);
 
   return rows.map((r) => ({
     timestamp: r.timestamp, provider: r.provider, model: r.model,
     connectionId: r.connectionId, apiKeyMasked: maskApiKey(r.apiKey), endpoint: r.endpoint,
     cost: r.cost, status: r.status, tokens: parseJson(r.tokens, {}),
+    routerRecordId: r.routerRecordId, experimentRequestId: r.experimentRequestId, providerAttemptId: r.providerAttemptId,
   }));
 }
 

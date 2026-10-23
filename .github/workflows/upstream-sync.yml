@@ -1,0 +1,184 @@
+name: Upstream Sync
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: upstream-sync
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  SYNC_BRANCH: automation/upstream-sync
+  SYNC_TITLE: "chore: sync upstream 9router"
+  REQUIRED_CHECK: CI / test-and-build
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out fork with full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Create GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.UPSTREAM_SYNC_APP_ID }}
+          private-key: ${{ secrets.UPSTREAM_SYNC_APP_PRIVATE_KEY }}
+
+      - name: Configure fork remote
+        env:
+          APP_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          git remote set-url origin "https://x-access-token:${APP_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git remote add upstream https://github.com/decolua/9router.git
+          git config user.name "9router upstream sync"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch fork and upstream
+        run: |
+          git fetch --prune origin master "refs/heads/${SYNC_BRANCH}:refs/remotes/origin/${SYNC_BRANCH}" || git fetch --prune origin master
+          git fetch --prune upstream master
+
+      - name: Inspect existing synchronization PR
+        id: existing-pr
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          pr_json="$(gh api "repos/${GITHUB_REPOSITORY}/pulls?state=open&head=${GITHUB_REPOSITORY_OWNER}:${SYNC_BRANCH}&base=master")"
+          pr_count="$(jq 'length' <<<"$pr_json")"
+          if [[ "$pr_count" -gt 1 ]]; then
+            echo "More than one open synchronization PR exists; manual intervention required." >&2
+            exit 1
+          fi
+          if [[ "$pr_count" == "1" ]]; then
+            pr_number="$(jq -r '.[0].number' <<<"$pr_json")"
+            pr_node_id="$(jq -r '.[0].node_id' <<<"$pr_json")"
+            pr_head_sha="$(jq -r '.[0].head.sha' <<<"$pr_json")"
+            echo "number=$pr_number" >> "$GITHUB_OUTPUT"
+            echo "node_id=$pr_node_id" >> "$GITHUB_OUTPUT"
+            echo "head_sha=$pr_head_sha" >> "$GITHUB_OUTPUT"
+          else
+            echo "number=" >> "$GITHUB_OUTPUT"
+            echo "node_id=" >> "$GITHUB_OUTPUT"
+            echo "head_sha=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Disable stale auto-merge and enforce expected branch head
+        if: steps.existing-pr.outputs.number != ''
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          expected_remote_sha="$(git ls-remote origin "refs/heads/${SYNC_BRANCH}" | awk '{print $1}')"
+          if [[ -z "$expected_remote_sha" ]]; then
+            echo "Existing synchronization PR has no remote branch; manual intervention required." >&2
+            exit 1
+          fi
+          if [[ "$expected_remote_sha" != "${{ steps.existing-pr.outputs.head_sha }}" ]]; then
+            echo "Synchronization PR head does not match the automation branch head; refusing to rewrite it." >&2
+            exit 1
+          fi
+          gh api graphql -f query='mutation($pullRequestId:ID!){disablePullRequestAutoMerge(input:{pullRequestId:$pullRequestId}){pullRequest{id}}}' -F pullRequestId="${{ steps.existing-pr.outputs.node_id }}" >/dev/null || true
+
+      - name: Rebuild synchronization branch from master
+        run: |
+          git checkout -B "$SYNC_BRANCH" origin/master
+          git merge --no-edit --no-ff upstream/master
+
+      - name: Capture conflict evidence and stop
+        if: failure()
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          unresolved="$(git diff --name-only --diff-filter=U || true)"
+          {
+            echo "## Upstream synchronization conflict"
+            echo
+            echo '```text'
+            printf '%s\n' "$unresolved"
+            echo '```'
+            echo
+            echo "Fork master: $(git rev-parse origin/master)"
+            echo "Upstream master: $(git rev-parse upstream/master)"
+            echo "Automation branch: $(git rev-parse HEAD 2>/dev/null || true)"
+          } >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' "$unresolved" > conflict-files.txt
+          git rev-parse origin/master upstream/master HEAD > conflict-shas.txt
+          gh api graphql -f query='mutation($pullRequestId:ID!){disablePullRequestAutoMerge(input:{pullRequestId:$pullRequestId}){pullRequest{id}}}' -F pullRequestId="${{ steps.existing-pr.outputs.node_id }}" >/dev/null 2>&1 || true
+          git merge --abort 2>/dev/null || true
+          exit 1
+
+      - name: Upload conflict evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: upstream-sync-conflict
+          path: |
+            conflict-files.txt
+            conflict-shas.txt
+
+      - name: Classify changed paths
+        id: paths
+        run: |
+          git diff --name-only origin/master...HEAD > changed-paths.txt
+          if grep -Eq '^(\.github/workflows/|\.github/actions/|package(-lock)?\.json$|scripts/|open-sse/(executors|services|handlers/routing)|src/(app/api|lib/auth|lib/db|lib/usage)|src/app/api/v1/chatgpt-web/responses/|tests/unit/(chatgpt-web-responses-relay|attribution-persistence))' changed-paths.txt; then
+            echo "privileged=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "privileged=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Verify expected remote head before push
+        id: remote-head
+        run: |
+          expected_remote_sha="$(git ls-remote origin "refs/heads/${SYNC_BRANCH}" | awk '{print $1}')"
+          if [[ -z "$expected_remote_sha" ]]; then expected_remote_sha=0000000000000000000000000000000000000000; fi
+          echo "expected=$expected_remote_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Push synchronization branch
+        run: git push --force-with-lease="refs/heads/${SYNC_BRANCH}:${{ steps.remote-head.outputs.expected }}" origin "HEAD:refs/heads/${SYNC_BRANCH}"
+
+      - name: Create or update synchronization PR
+        id: sync-pr
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          if [[ "${{ steps.existing-pr.outputs.number }}" == "" ]]; then
+            pr_url="$(gh pr create --base master --head "$SYNC_BRANCH" --title "$SYNC_TITLE" --body-file <(cat <<'EOF'
+          This PR is maintained by the scheduled upstream synchronization workflow.
+
+          - Source: `decolua/9router:master`
+          - Target: `longdang193/9router:master`
+          - Merge policy: merge commit only
+          - Privileged-path changes, conflicts, and failed checks require manual review.
+          EOF
+          ))"
+            echo "number=$(gh pr view "$pr_url" --json number --jq .number)" >> "$GITHUB_OUTPUT"
+          else
+            echo "number=${{ steps.existing-pr.outputs.number }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Wait for the required CI check
+        if: steps.paths.outputs.privileged == 'false'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: gh pr checks "${{ steps.sync-pr.outputs.number }}" --required --watch --interval 15
+
+      - name: Enable merge-commit auto-merge for non-privileged changes
+        if: steps.paths.outputs.privileged == 'false'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: gh pr merge "${{ steps.sync-pr.outputs.number }}" --merge --auto
+
+      - name: Mark privileged changes for manual review
+        if: steps.paths.outputs.privileged == 'true'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: gh pr comment "${{ steps.sync-pr.outputs.number }}" --body 'Privileged fork-owned paths changed. Auto-merge is intentionally withheld; explicit review is required.'
