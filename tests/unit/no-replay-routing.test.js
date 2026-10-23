@@ -29,13 +29,13 @@ const log = { info: vi.fn(), warn: vi.fn() };
 describe("non-replayable outer routing", () => {
   it("does not rotate when the upstream response marks dispatch as non-replayable", async () => {
     const handleSingleModel = vi.fn(async () => new Response(
-      JSON.stringify({ error: { message: "CGW upstream failed" } }),
+      JSON.stringify({ error: { message: "upstream failed" } }),
       { status: 502, headers: { "x-9router-no-replay": "1" } }
     ));
 
     const result = await handleComboChat({
       body: { messages: [{ role: "user", content: "hello" }] },
-      models: ["cgw/gpt-6.1-sol", "cgw/gpt-5.6-sol"],
+      models: ["provider/gpt-6.1-sol", "provider/gpt-5.6-sol"],
       handleSingleModel,
       log,
       comboStrategy: "fallback"
@@ -47,13 +47,13 @@ describe("non-replayable outer routing", () => {
 
   it("keeps the legacy combo import on the canonical no-replay path", async () => {
     const handleSingleModel = vi.fn(async () => new Response(
-      JSON.stringify({ error: { message: "CGW upstream failed" } }),
+      JSON.stringify({ error: { message: "upstream failed" } }),
       { status: 502, headers: { "x-9router-no-replay": "1" } }
     ));
 
     const result = await handleCompactComboChat({
       body: { messages: [{ role: "user", content: "hello" }] },
-      models: ["cgw/gpt-6.1-sol", "cgw/gpt-5.6-sol"],
+      models: ["provider/gpt-6.1-sol", "provider/gpt-5.6-sol"],
       handleSingleModel,
       log,
     });
@@ -119,7 +119,7 @@ describe("non-replayable outer routing", () => {
     executeMock.mockImplementation(async ({ dispatchContext }) => {
       dispatchContext.state = DISPATCH_COMPLETED;
       return {
-        response: new Response(JSON.stringify({ error: { message: "CGW upstream failed" } }), {
+        response: new Response(JSON.stringify({ error: { message: "upstream failed" } }), {
           status: 502,
           headers: { "x-9router-no-replay": "1" },
         }),

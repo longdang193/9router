@@ -8,6 +8,7 @@ import { getCapabilitiesForModel } from "../providers/capabilities.js";
 import { extractTextContent } from "../translator/formats/gemini.js";
 import { NON_REPLAYABLE } from "../config/replayPolicy.js";
 import { hasDispatchStarted } from "../utils/dispatchState.js";
+import { assertSupportedModel } from "../config/retiredModels.js";
 
 // Hard capabilities = input modalities; missing one drops request data (e.g. image
 // stripped). Must be prioritized. Soft (e.g. search) only degrades a feature.
