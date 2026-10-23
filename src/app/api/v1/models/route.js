@@ -21,6 +21,7 @@ import { resolveZedModels } from "open-sse/shared/zedAuth.js";
 import { updateProviderCredentials } from "@/sse/services/tokenRefresh";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
 import { capabilitiesFromServiceKind, getCapabilitiesForModel, aggregateComboCapabilities } from "open-sse/providers/capabilities.js";
+import { isRetiredModel, isRetiredModelInfo } from "open-sse/config/retiredModels.js";
 
 // Qoder shares one live resolver across intl (qoder) and CN (qoder-cn); the
 // credentials carry the provider id so qoderModels picks the right region's
@@ -388,6 +389,7 @@ export async function buildModelsList(kindFilter, options = {}) {
 
   // Combos first (filtered by kind). Web combos expose `kind` so AI knows search vs fetch.
   for (const combo of combos) {
+    if (combo?.validity !== "valid") continue;
     if (!comboMatchesKinds(combo, kindFilter)) continue;
     const entry = {
       id: combo.name,
@@ -418,6 +420,7 @@ export async function buildModelsList(kindFilter, options = {}) {
       for (const model of providerModels) {
         if (!kindFilter.includes(modelKind(model))) continue;
         if (isDisabled(alias, model.id) || isDisabled(providerId, model.id)) continue;
+        if (isRetiredModel(`${alias}/${model.id}`) || isRetiredModelInfo({ provider: providerId, model: model.id })) continue;
         models.push({
           id: `${alias}/${model.id}`,
           object: "model",
@@ -436,6 +439,7 @@ export async function buildModelsList(kindFilter, options = {}) {
 
       const modelId = String(customModel.id).trim();
       if (!modelId) continue;
+      if (isRetiredModel(`${providerAlias}/${modelId}`)) continue;
 
       models.push({
         id: `${providerAlias}/${modelId}`,
@@ -573,6 +577,7 @@ export async function buildModelsList(kindFilter, options = {}) {
         const allowAsLlm = kind === "imageToText" && kindFilter.includes(LLM_KIND);
         if (!kindFilter.includes(kind) && !allowAsLlm) continue;
         if (isDisabled(outputAlias, modelId) || isDisabled(staticAlias, modelId) || isDisabled(providerId, modelId)) continue;
+        if (isRetiredModel(`${outputAlias}/${modelId}`) || isRetiredModelInfo({ provider: providerId, model: modelId })) continue;
 
         const model = {
           id: `${outputAlias}/${modelId}`,

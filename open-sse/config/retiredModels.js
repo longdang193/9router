@@ -1,5 +1,13 @@
-const RETIRED_MODEL_NAMES = new Set(["combo-web-high", "combo-web-medium"]);
-const RETIRED_MODEL_PREFIXES = ["cgw/", "chatgpt-web/"];
+export const RETIRED_MODEL_POLICY = Object.freeze({
+  retiredModelNames: ["combo-web-high", "combo-web-medium"],
+  retiredModelPrefixes: ["cgw/", "chatgpt-web/", "cg/"],
+  retiredProviderIds: ["chatgpt-web"],
+  providerAliases: { cg: "chatgpt-web" },
+});
+
+const RETIRED_MODEL_NAMES = new Set(RETIRED_MODEL_POLICY.retiredModelNames);
+const RETIRED_MODEL_PREFIXES = RETIRED_MODEL_POLICY.retiredModelPrefixes;
+const RETIRED_PROVIDER_IDS = new Set(RETIRED_MODEL_POLICY.retiredProviderIds);
 
 export class RetiredModelError extends Error {
   constructor(value) {
@@ -15,8 +23,23 @@ export function isRetiredModel(value) {
   return RETIRED_MODEL_NAMES.has(value) || RETIRED_MODEL_PREFIXES.some((prefix) => value.startsWith(prefix));
 }
 
+export function isRetiredModelInfo(value) {
+  if (!value || typeof value !== "object") return false;
+  const provider = typeof value.provider === "string" ? value.provider : "";
+  const model = typeof value.model === "string" ? value.model : "";
+  return RETIRED_PROVIDER_IDS.has(provider) || isRetiredModel(`${provider}/${model}`);
+}
+
 export function assertSupportedModel(value) {
   if (isRetiredModel(value)) throw new RetiredModelError(value);
+  return value;
+}
+
+export function assertSupportedModelInfo(value, originalValue = null) {
+  if (isRetiredModelInfo(value)) {
+    const canonicalValue = `${value.provider}/${value.model}`;
+    throw new RetiredModelError(originalValue || canonicalValue);
+  }
   return value;
 }
 

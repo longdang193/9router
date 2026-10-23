@@ -33,7 +33,7 @@ describe("model routing", () => {
     await expect(ctx.getModelInfo("oct/gpt-image-1")).resolves.toEqual({ provider: "openai-compatible-chat-test", model: "gpt-image-1" });
   });
 
-  it.each(["combo-web-high", "combo-web-medium", "cgw/gpt-5.6-sol", "chatgpt-web/gpt-5.6-sol"])("rejects retired model %s before provider lookup", async (model) => {
+  it.each(["combo-web-high", "combo-web-medium", "cgw/gpt-5-6", "chatgpt-web/gpt-5-6", "cgw/gpt-5.6-sol", "chatgpt-web/gpt-5.6-sol", "cg/gpt-5-6", "cg/gpt-5.6-sol", "cg/gpt-image-2"])("rejects retired model %s before provider lookup", async (model) => {
     const ctx = await setupDb(); cleanup = ctx.cleanup;
     await expect(ctx.getModelInfo(model)).rejects.toMatchObject({ code: "RETIRED_MODEL", status: 410 });
   });
@@ -41,11 +41,17 @@ describe("model routing", () => {
   it.each([
     ["cgw-alias", "cgw/gpt-5.6-sol"],
     ["chatgpt-web-alias", "chatgpt-web/gpt-5.6-sol"],
+    ["cg-alias", "cg/gpt-5.6-sol"],
     ["retired-combo-alias", "combo-web-high"],
   ])("rejects alias %s after resolving retired target %s", async (alias, target) => {
     const ctx = await setupDb(); cleanup = ctx.cleanup;
     await ctx.setModelAlias(alias, target);
     await expect(ctx.getModelInfo(alias)).rejects.toMatchObject({ code: "RETIRED_MODEL", status: 410 });
+  });
+
+  it("preserves maintained provider routing after canonical retirement checks", async () => {
+    const ctx = await setupDb(); cleanup = ctx.cleanup;
+    await expect(ctx.getModelInfo("codex/gpt-5.6")).resolves.toEqual({ provider: "codex", model: "gpt-5.6" });
   });
 
   it("rejects alias cycles instead of recursing or falling through to a provider", async () => {

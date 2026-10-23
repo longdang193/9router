@@ -58,6 +58,14 @@ describe("dedicated Codex Web Responses relay", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("keeps the legacy native relay outside general CGW model routing", async () => {
+    const { default: registry } = await import("open-sse/providers/registry/index.js");
+    const { hasSpecializedExecutor } = await import("open-sse/executors/index.js");
+
+    expect(registry.some((provider) => provider.id === "chatgpt-web")).toBe(false);
+    expect(hasSpecializedExecutor("chatgpt-web")).toBe(false);
+  });
+
   it("accepts Next canonical localhost request URLs", async () => {
     const fetchMock = vi.fn(async () => new Response("ok", { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
@@ -90,6 +98,7 @@ describe("dedicated Codex Web Responses relay", () => {
     expect(init.method).toBe("POST");
     expect(init.headers.get("authorization")).toBe("Bearer native-codex-token");
     expect(init.headers.get("x-codex-turn-metadata")).toBe(METADATA);
+    expect(init.headers.get("x-9router-relay")).toBe("codex-native-v1");
     expect(init.headers.get("x-request-id")).toBeNull();
     expect(init.headers.get("chatgpt-account-id")).toBeNull();
     expect(init.headers.get("connection")).toBeNull();

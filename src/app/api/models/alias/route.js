@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { getModelAliases, setModelAlias, deleteModelAlias } from "@/models";
+import { getModelInfo } from "@/sse/services/model.js";
+import { isRetiredModelError, retiredModelPayload } from "open-sse/config/retiredModels.js";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +24,15 @@ export async function PUT(request) {
 
     if (!model || !alias) {
       return NextResponse.json({ error: "Model and alias required" }, { status: 400 });
+    }
+
+    try {
+      await getModelInfo(model);
+    } catch (error) {
+      if (isRetiredModelError(error)) {
+        return NextResponse.json(retiredModelPayload(error), { status: 410 });
+      }
+      throw error;
     }
 
     await setModelAlias(alias, model);
