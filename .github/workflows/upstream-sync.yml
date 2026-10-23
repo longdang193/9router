@@ -15,7 +15,7 @@ permissions:
 env:
   SYNC_BRANCH: automation/upstream-sync
   SYNC_TITLE: "chore: sync upstream 9router"
-  REQUIRED_CHECK: CI / test-and-build
+  REQUIRED_CHECK: test-and-build
 
 jobs:
   sync:
