@@ -73,6 +73,25 @@ describe("model routing", () => {
     await expect(response.json()).resolves.toMatchObject({ error: { code: "RETIRED_MODEL" } });
   });
 
+  it("rejects stored retired aliases before Claude CLI bypass", async () => {
+    const ctx = await setupDb(); cleanup = ctx.cleanup;
+    await ctx.setModelAlias("legacy-chat", "cg/gpt-5.6-sol");
+    await ctx.updateSettings({ requireApiKey: false });
+    const response = await ctx.handleChat(new Request("http://localhost/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "user-agent": "claude-cli/1.0",
+      },
+      body: JSON.stringify({
+        model: "legacy-chat",
+        messages: [{ role: "user", content: "Warmup" }],
+      }),
+    }));
+    expect(response.status).toBe(410);
+    await expect(response.json()).resolves.toMatchObject({ error: { code: "RETIRED_MODEL" } });
+  });
+
   it.each([
     ["/v1/chat/completions", () => import("../../src/app/api/v1/chat/completions/route.js")],
     ["/v1/responses", () => import("../../src/app/api/v1/responses/route.js")],

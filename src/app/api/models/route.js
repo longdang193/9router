@@ -4,6 +4,7 @@ import { getDisabledModels } from "@/lib/disabledModelsDb";
 import { AI_MODELS } from "@/shared/constants/config";
 import { getProviderAlias, ALIAS_TO_ID } from "@/shared/constants/providers";
 import { getCapabilitiesForModel } from "open-sse/providers/capabilities.js";
+import { isRetiredModel, isRetiredModelInfo } from "open-sse/config/retiredModels.js";
 
 // GET /api/models - Get models with aliases
 export async function GET() {
@@ -50,6 +51,8 @@ export async function GET() {
     const seenRouted = new Set(models.map((m) => m.routedModel));
     const customModels = (await getCustomModels()).filter((m) => {
       if (!m?.id || (m.kind || m.type || "llm") !== "llm") return false;
+      const providerId = ALIAS_TO_ID[m.providerAlias] || m.providerAlias;
+      if (isRetiredModel(`${m.providerAlias}/${m.id}`) || isRetiredModelInfo({ provider: providerId, model: m.id })) return false;
       if (seenRouted.has(`${m.providerAlias}/${m.id}`)) return false;
       return !seenFull.has(`${m.providerAlias}/${m.id}`);
     });

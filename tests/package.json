@@ -6,7 +6,8 @@
   "description": "Unit tests for 9router embeddings endpoint",
   "scripts": {
     "test": "vitest run --reporter=verbose",
-    "test:watch": "vitest --reporter=verbose"
+    "test:watch": "vitest --reporter=verbose",
+    "test:fork-contracts": "vitest run unit/model-routing.test.js unit/retired-combo-ownership.test.js unit/retirement-boundaries.test.js unit/account-fallback.test.js unit/combo-fusion.test.js unit/combo-routing.test.js unit/executor-replay-policy.test.js unit/no-replay-routing.test.js unit/chat-request-correlation.test.js unit/attribution-persistence.test.js unit/chatgpt-web-responses-relay.test.js unit/image-provider-retirement.test.js --testTimeout=20000"
   },
   "devDependencies": {
     "vitest": "^4.0.0"
