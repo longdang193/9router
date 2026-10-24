@@ -144,7 +144,7 @@ jobs:
         if: env.NO_CHANGES != 'true'
         run: |
           git diff --name-only origin/master...HEAD > changed-paths.txt
-          if grep -Eq '^(\.github/workflows/|\.github/actions/|package(-lock)?\.json$|scripts/|open-sse/(executors|services|handlers/routing)|src/(app/api|lib/auth|lib/db|lib/usage)|src/app/api/v1/chatgpt-web/responses/|tests/unit/(chatgpt-web-responses-relay|attribution-persistence))' changed-paths.txt; then
+          if grep -Eq '^(\.github/workflows/|\.github/actions/|package(-lock)?\.json$|scripts/|open-sse/(config/retiredModels\.js|config/retired-model-policy\.json|executors|services|handlers/routing)|src/(app/api|lib/auth|lib/db|lib/usage)|src/app/api/v1/chatgpt-web/responses/|tests/unit/(chatgpt-web-responses-relay|retired-combo-ownership|retirement-boundaries|image-provider-retirement|attribution-persistence))' changed-paths.txt; then
             echo "privileged=true" >> "$GITHUB_OUTPUT"
           else
             echo "privileged=false" >> "$GITHUB_OUTPUT"
