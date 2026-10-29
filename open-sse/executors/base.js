@@ -118,7 +118,7 @@ export class BaseExecutor {
     return { status: response.status, message: bodyText || `HTTP ${response.status}` };
   }
 
-  async execute({ model, body, stream, credentials, signal, log, proxyOptions = null, providerOverrides = null, replayPolicy, dispatchContext = null }) {
+  async execute({ model, body, stream, credentials, signal, log, proxyOptions = null, providerOverrides = null, replayPolicy, dispatchContext = null, directFetch = null }) {
     const normalizedReplayPolicy = readReplayPolicy(replayPolicy);
     const requestDispatch = dispatchContext || createDispatchContext();
     if (!canReplayRequest(normalizedReplayPolicy, requestDispatch)) {
@@ -187,7 +187,10 @@ export class BaseExecutor {
           method: "POST",
           headers,
           body: bodyStr,
-          signal: mergedSignal
+          signal: mergedSignal,
+          // Protocol adapters that need their own transport (opencode's TLS
+          // fingerprint) override the direct path; proxies still take priority.
+          ...(directFetch ? { directFetch } : {}),
         }, proxyOptions);
         clearTimeout(connectTimer);
         markDispatchCompleted(requestDispatch);
