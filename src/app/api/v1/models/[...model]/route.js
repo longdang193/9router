@@ -1,5 +1,6 @@
 import { buildModelsList } from "../route.js";
 import { getKeyAccessContext, filterModelsListForKey } from "@/sse/services/keyAccess.js";
+import { assertSupportedModel, isRetiredModelError, retiredModelPayload } from "open-sse/config/retiredModels.js";
 
 // URL slug → service kind(s). `web` covers both webSearch and webFetch.
 const KIND_SLUG_MAP = {
@@ -51,6 +52,8 @@ export async function GET(request, { params }) {
       return json({ object: "list", data });
     }
 
+    assertSupportedModel(identifier);
+
     // Match the same LLM catalog exposed by GET /v1/models. A catch-all
     // parameter is required because provider-prefixed IDs contain a slash.
     const models = await filterModelsListForKey(keyAccess, await buildModelsList([LLM_KIND]));
@@ -72,6 +75,9 @@ export async function GET(request, { params }) {
     return json(matchedModel);
   } catch (error) {
     console.log("Error fetching model:", error);
+    if (isRetiredModelError(error)) {
+      return json(retiredModelPayload(error), { status: 410 });
+    }
     return json(
       { error: { message: error.message, type: "server_error" } },
       { status: 500 },
