@@ -673,7 +673,7 @@ function wrapStreamWithCleanup(responseStream, cleanup) {
       controller.enqueue(value);
     },
     cancel() {
-      reader.cancel();
+      reader.cancel().catch(() => {});
       cleanup().catch(() => {});
     },
   });

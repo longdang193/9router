@@ -33,6 +33,35 @@ async function readAll(stream) {
 }
 
 describe("Responses abort terminal synthesis", () => {
+  it("observes reader and writer cancellation failures", async () => {
+    const unhandled = [];
+    const onUnhandled = (reason) => unhandled.push(reason);
+    process.on("unhandledRejection", onUnhandled);
+    try {
+      const out = createDisconnectAwareStream(
+        {
+          readable: {
+            getReader: () => ({
+              cancel: () => Promise.reject(Object.assign(new Error("read ECONNRESET"), { code: "ECONNRESET" })),
+            }),
+          },
+          writable: {
+            getWriter: () => ({
+              abort: () => Promise.reject(new Error("writer closed")),
+            }),
+          },
+        },
+        makeController(),
+      );
+
+      await out.cancel("client_closed");
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(unhandled).toEqual([]);
+    } finally {
+      process.off("unhandledRejection", onUnhandled);
+    }
+  });
+
   it("emits response.failed + [DONE] when upstream errors (abort/stall)", async () => {
     // Upstream readable that errors mid-stream (simulates fetch abort on stall)
     const upstream = new ReadableStream({
