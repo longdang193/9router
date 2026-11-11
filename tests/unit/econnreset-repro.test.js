@@ -41,7 +41,7 @@ function makeExecutor(baseUrl) {
 
 let rstServer, rstUrl, rstHits;
 let midServer, midUrl, midHits;
-let okServer, okUrl;
+let okServer, okUrl, okHits;
 let proxyServer, proxyUrl, proxyHits;
 
 beforeAll(async () => {
@@ -72,7 +72,9 @@ beforeAll(async () => {
   midUrl = `http://127.0.0.1:${midServer.address().port}/v1/messages`;
 
   // healthy upstream for the proxy-fallback scenario
+  okHits = 0;
   okServer = http.createServer((req, res) => {
+    okHits++;
     req.resume();
     req.on("end", () => res.end(JSON.stringify({ ok: true })));
   });
@@ -174,5 +176,16 @@ describe("C. dead proxy", () => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify(BODY),
     }, { enabled: true, url: proxyUrl, strictProxy: true })).rejects.toThrow(/strictProxy/);
+  });
+
+  it("refuses the direct fallback when replay is forbidden", async () => {
+    const beforeOkHits = okHits;
+    await expect(proxyAwareFetch(okUrl, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(BODY),
+      allowReplay: false,
+    }, { enabled: true, url: proxyUrl })).rejects.toThrow(/fetch failed/);
+    expect(okHits).toBe(beforeOkHits);
   });
 });

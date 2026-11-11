@@ -4,6 +4,7 @@
 // tests pin the executor-side retry so the CLI gets a response, while a real
 // free-tier quota 429 is still delivered without delay.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { NON_REPLAYABLE } from "../../open-sse/config/replayPolicy.js";
 
 // Keep the retry loop under test in isolation: no network, no credentials.
 const { baseExecuteMock } = vi.hoisted(() => ({ baseExecuteMock: vi.fn() }));
@@ -36,22 +37,23 @@ const FREE_USAGE = JSON.stringify({
   error: { type: "FreeUsageLimitError", message: "Free usage limit reached. Please try again later." },
 });
 
-function upstream(status, body) {
+function upstream(status, body, headers = {}) {
   return {
     response: new Response(body, {
       status,
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...headers },
     }),
   };
 }
 
-async function run(executor, log, credentials = {}) {
+async function run(executor, log, credentials = {}, options = {}) {
   const pending = executor.execute({
     model: "deepseek-v4.1-flash-free",
     body: { messages: [{ role: "user", content: "say OK" }] },
     stream: true,
     credentials,
     log,
+    ...options,
   });
   // Let every backoff timer fire (8 attempts, ~20 s of backoff).
   await vi.advanceTimersByTimeAsync(60_000);
@@ -112,6 +114,29 @@ describe("OpenCodeExecutor overload retry", () => {
 
     expect(baseExecuteMock).toHaveBeenCalledTimes(1);
     expect(result.response.status).toBe(500);
+  });
+
+  it("does not retry a response marked non-replayable", async () => {
+    baseExecuteMock.mockImplementation(async ({ dispatchContext }) => {
+      dispatchContext.state = "completed";
+      return upstream(429, OVERLOAD);
+    });
+
+    const result = await run(new OpenCodeExecutor("opencode", {}), undefined, {}, {
+      replayPolicy: NON_REPLAYABLE,
+    });
+
+    expect(baseExecuteMock).toHaveBeenCalledTimes(1);
+    expect(result.response.status).toBe(429);
+  });
+
+  it("does not retry a response carrying the no-replay marker", async () => {
+    baseExecuteMock.mockResolvedValue(upstream(429, OVERLOAD, { "x-9router-no-replay": "1" }));
+
+    const result = await run(new OpenCodeExecutor("opencode", {}));
+
+    expect(baseExecuteMock).toHaveBeenCalledTimes(1);
+    expect(result.response.status).toBe(429);
   });
 
   it("stops at once when the caller has already aborted", async () => {

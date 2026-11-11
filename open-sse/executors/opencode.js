@@ -9,6 +9,8 @@ import { isMuseSparkModel } from "../providers/models/helpers.js";
 import { applyFingerprintTools } from "../utils/opencodeFingerprint.js";
 import { opencodeTlsFetch } from "../services/opencodeTlsClient.js";
 import { ANTHROPIC_API_VERSION } from "../providers/shared.js";
+import { readReplayPolicy } from "../config/replayPolicy.js";
+import { canReplayRequest, createDispatchContext } from "../utils/dispatchState.js";
 import {
   normalizeResponsesInput,
   clampResponsesCallId,
@@ -466,6 +468,8 @@ export class OpenCodeExecutor extends BaseExecutor {
   // out on native fetch instead of erroring here.
   async execute(args) {
     const credentials = this.prepareRequestCredentials(args);
+    const dispatchContext = args.dispatchContext || createDispatchContext();
+    const replayPolicy = readReplayPolicy(args.replayPolicy);
     const directFetch = (url, options, proxyUrl) => opencodeTlsFetch(url, {
       method: options.method,
       headers: options.headers,
@@ -473,7 +477,7 @@ export class OpenCodeExecutor extends BaseExecutor {
     }, { signal: options.signal, proxyUrl });
     // wreq-js tunnels the proxy itself; adapters that cannot must stay on undici.
     directFetch.proxyCapable = true;
-    const run = () => super.execute({ ...args, credentials, directFetch });
+    const run = () => super.execute({ ...args, credentials, directFetch, dispatchContext });
 
     // The free lane sheds load with 429 "The inference service is overloaded.
     // Please try again later." even after the request passes the TLS gate, and
@@ -494,6 +498,10 @@ export class OpenCodeExecutor extends BaseExecutor {
       // A disconnected client should not keep the retry loop (and the free lane)
       // busy for another ~20 s.
       if (rejection !== "overload" || attempt >= OPENCODE_OVERLOAD_ATTEMPTS || args.signal?.aborted) {
+        return result;
+      }
+      if (result.response?.headers?.get?.("x-9router-no-replay") === "1"
+        || !canReplayRequest(replayPolicy, dispatchContext)) {
         return result;
       }
       // Release the discarded 429 instead of leaving its stream half-read.

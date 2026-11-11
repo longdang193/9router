@@ -74,6 +74,15 @@ function normalizeExeName(name) {
   return String(name || "").trim().toLowerCase().replace(/\.exe$/, "");
 }
 
+function normalizeCommandLine(commandLine) {
+  return String(commandLine || "")
+    .replace(/["']/g, "")
+    .replace(/\\/g, "/")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
 function lookupExeName(pid) {
   if (process.platform === "win32") {
     const out = execFileSync("tasklist", ["/FI", `PID eq ${pid}`, "/FO", "CSV", "/NH"], {
@@ -96,6 +105,34 @@ function lookupExeName(pid) {
   }
 }
 
+function lookupProcessIdentity(pid) {
+  if (!toPid(pid)) return null;
+  try {
+    if (process.platform === "win32") {
+      const script = `$p = Get-CimInstance Win32_Process -Filter \"ProcessId = ${pid}\"; if ($p) { [pscustomobject]@{ CommandLine = $p.CommandLine; StartTime = $p.CreationDate.ToUniversalTime().ToString(\"o\") } | ConvertTo-Json -Compress }`;
+      const output = execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], {
+        encoding: "utf8",
+        windowsHide: true,
+        timeout: EXE_LOOKUP_TIMEOUT_MS,
+      }).trim();
+      if (!output) return null;
+      const identity = JSON.parse(output);
+      return identity?.CommandLine && identity?.StartTime
+        ? { commandLine: identity.CommandLine, startTime: identity.StartTime }
+        : null;
+    }
+
+    const commandLine = fs.readFileSync(`/proc/${pid}/cmdline`, "utf8").replace(/\0/g, " ").trim();
+    const startTime = execFileSync("ps", ["-p", String(pid), "-o", "lstart="], {
+      encoding: "utf8",
+      timeout: EXE_LOOKUP_TIMEOUT_MS,
+    }).trim();
+    return commandLine && startTime ? { commandLine, startTime } : null;
+  } catch {
+    return null;
+  }
+}
+
 // Guards against PID reuse: a stale record must not kill an unrelated program.
 function processMatchesExe(pid, exe) {
   const expected = normalizeExeName(exe);
@@ -105,6 +142,13 @@ function processMatchesExe(pid, exe) {
   } catch {
     return false;
   }
+}
+
+function processMatchesIdentity(pid, identity, { lookup = lookupProcessIdentity } = {}) {
+  if (!identity?.commandLine || !identity?.startTime || !toPid(pid)) return false;
+  const current = lookup(pid);
+  if (!current || current.startTime !== identity.startTime) return false;
+  return normalizeCommandLine(current.commandLine) === normalizeCommandLine(identity.commandLine);
 }
 
 function defaultKillPid(pid) {
@@ -126,14 +170,17 @@ function defaultKillPid(pid) {
 function stopRecordedInstance(record, {
   selfPid = process.pid,
   isAlive = isPidAlive,
-  matchesExe = processMatchesExe,
+  matchesProcess = processMatchesIdentity,
   killPid = defaultKillPid,
 } = {}) {
   if (!record) return [];
-  const candidates = [record.serverPid, record.cliPid].filter((pid) => toPid(pid) && pid !== selfPid);
+  const candidates = [
+    { pid: record.serverPid, identity: record.serverIdentity },
+    { pid: record.cliPid, identity: record.cliIdentity },
+  ].filter(({ pid }) => toPid(pid) && pid !== selfPid);
   const killed = [];
-  for (const pid of candidates) {
-    if (!isAlive(pid) || !matchesExe(pid, record.exe)) continue;
+  for (const { pid, identity } of candidates) {
+    if (!isAlive(pid) || !matchesProcess(pid, identity)) continue;
     try {
       killPid(pid);
       killed.push(pid);
@@ -179,6 +226,8 @@ module.exports = {
   removePidRecordIfOwner,
   isPidAlive,
   processMatchesExe,
+  lookupProcessIdentity,
+  processMatchesIdentity,
   stopRecordedInstance,
   isPortInUse,
   waitForPortFree,

@@ -9,10 +9,23 @@ const require = createRequire(import.meta.url);
 const lp = require("../../cli/src/cli/utils/launcherProcess.js");
 
 const EXE = path.basename(process.execPath);
+const IDENTITY = { commandLine: "node /app/9router.js --tray", startTime: "2026-11-11T12:00:00.0000000Z" };
+
+function record(overrides = {}) {
+  return {
+    cliPid: 10,
+    serverPid: 20,
+    exe: EXE,
+    cliIdentity: IDENTITY,
+    serverIdentity: IDENTITY,
+    ...overrides,
+  };
+}
 
 function listen() {
   return new Promise((resolve) => {
     const server = net.createServer();
+    server.on("connection", (socket) => socket.on("error", () => {}));
     server.listen(0, "127.0.0.1", () => resolve(server));
   });
 }
@@ -106,26 +119,26 @@ describe("stopRecordedInstance", () => {
 
   it("kills the recorded server and CLI", () => {
     const { killed, opts } = deps();
-    const result = lp.stopRecordedInstance({ cliPid: 10, serverPid: 20, exe: EXE }, opts);
+    const result = lp.stopRecordedInstance(record(), { ...opts, matchesProcess: () => true });
     expect(killed).toEqual([20, 10]);
     expect(result).toEqual([20, 10]);
   });
 
   it("never kills itself", () => {
     const { killed, opts } = deps({ selfPid: 10 });
-    lp.stopRecordedInstance({ cliPid: 10, serverPid: 20, exe: EXE }, opts);
+    lp.stopRecordedInstance(record(), { ...opts, matchesProcess: () => true });
     expect(killed).toEqual([20]);
   });
 
   it("skips PIDs that are no longer alive", () => {
     const { killed, opts } = deps({ isAlive: (pid) => pid === 20 });
-    lp.stopRecordedInstance({ cliPid: 10, serverPid: 20, exe: EXE }, opts);
+    lp.stopRecordedInstance(record(), { ...opts, matchesProcess: () => true });
     expect(killed).toEqual([20]);
   });
 
   it("skips a reused PID that now belongs to a different program", () => {
-    const { killed, opts } = deps({ matchesExe: (pid) => pid !== 10 });
-    lp.stopRecordedInstance({ cliPid: 10, serverPid: 20, exe: EXE }, opts);
+    const { killed, opts } = deps({ matchesProcess: (pid) => pid !== 10 });
+    lp.stopRecordedInstance(record(), opts);
     expect(killed).toEqual([20]);
   });
 
@@ -136,8 +149,11 @@ describe("stopRecordedInstance", () => {
   });
 
   it("keeps going when one kill throws", () => {
-    const { opts } = deps({ killPid: (pid) => { if (pid === 20) throw new Error("denied"); } });
-    expect(lp.stopRecordedInstance({ cliPid: 10, serverPid: 20, exe: EXE }, opts)).toEqual([10]);
+    const { opts } = deps({
+      matchesProcess: () => true,
+      killPid: (pid) => { if (pid === 20) throw new Error("denied"); },
+    });
+    expect(lp.stopRecordedInstance(record(), opts)).toEqual([10]);
   });
 });
 
@@ -152,6 +168,23 @@ describe("processMatchesExe", () => {
 
   it("rejects a missing executable name", () => {
     expect(lp.processMatchesExe(process.pid, "")).toBe(false);
+  });
+});
+
+describe("processMatchesIdentity", () => {
+  it("requires both creation identity and exact command line", () => {
+    const lookup = () => ({ commandLine: IDENTITY.commandLine, startTime: IDENTITY.startTime });
+    expect(lp.processMatchesIdentity(10, IDENTITY, { lookup })).toBe(true);
+    expect(lp.processMatchesIdentity(10, IDENTITY, {
+      lookup: () => ({ commandLine: IDENTITY.commandLine, startTime: "different" }),
+    })).toBe(false);
+    expect(lp.processMatchesIdentity(10, IDENTITY, {
+      lookup: () => ({ commandLine: "node /other/app.js", startTime: IDENTITY.startTime }),
+    })).toBe(false);
+  });
+
+  it("rejects records without an identity", () => {
+    expect(lp.processMatchesIdentity(10, null, { lookup: () => IDENTITY })).toBe(false);
   });
 });
 

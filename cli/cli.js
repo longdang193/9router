@@ -69,6 +69,7 @@ const {
   readPidRecord,
   removePidRecordIfOwner,
   stopRecordedInstance,
+  lookupProcessIdentity,
   isPortInUse,
   waitForPortFree,
   waitForPidsExit,
@@ -683,7 +684,14 @@ function startServer(updatePromise) {
     }
     // Lets the next launch stop exactly this instance without a process scan.
     try {
-      writePidRecord(launcherPidFile, { cliPid: process.pid, serverPid: child.pid || null, port, exe: path.basename(RUNTIME) });
+      writePidRecord(launcherPidFile, {
+        cliPid: process.pid,
+        serverPid: child.pid || null,
+        port,
+        exe: path.basename(RUNTIME),
+        cliIdentity: lookupProcessIdentity(process.pid),
+        serverIdentity: child.pid ? lookupProcessIdentity(child.pid) : null,
+      });
     } catch { /* non-fatal: next launch falls back to the port check */ }
     return child;
   }
