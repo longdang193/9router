@@ -195,6 +195,7 @@ export class BaseExecutor {
           // Protocol adapters that need their own transport (opencode's TLS
           // fingerprint) override the direct path; proxies still take priority.
           ...(directFetch ? { directFetch } : {}),
+          allowReplay: normalizedReplayPolicy !== NON_REPLAYABLE,
         }, effectiveProxyOptions);
         clearTimeout(connectTimer);
         markDispatchCompleted(requestDispatch);

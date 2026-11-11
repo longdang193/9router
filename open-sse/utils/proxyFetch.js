@@ -377,7 +377,7 @@ function isBodyReplaySafe(body) {
   return !(body && typeof body.getReader === "function" && body.locked);
 }
 
-async function fetchWithTlsFallback(url, options, proxyUrl, forceFreshSocket = false) {
+async function fetchWithTlsFallback(url, options, proxyUrl, forceFreshSocket = false, allowReplay = true) {
   try {
     // Protocol adapters may need Node's HTTP/1 transport on the direct path.
     // Keep proxy/no-proxy resolution and strict-proxy enforcement here.
@@ -387,7 +387,7 @@ async function fetchWithTlsFallback(url, options, proxyUrl, forceFreshSocket = f
   } catch (err) {
     const isStrictSsl = options.strictTls === true || process.env.STRICT_SSL === "true" || process.env.STRICT_SSL === "1";
     if (!isStrictSsl && isTlsCertError(err)) {
-      if (!isBodyReplaySafe(options.body)) {
+      if (!allowReplay || !isBodyReplaySafe(options.body)) {
         throw err;
       }
       // ponytail: in-memory insecure agent fallback for self-signed MITM corporate/antivirus certs
@@ -404,11 +404,12 @@ async function fetchWithTlsFallback(url, options, proxyUrl, forceFreshSocket = f
       && !options.directFetch
       && !options.signal?.aborted
       && isBodyReplaySafe(options.body)
+      && allowReplay
       && isFreshSocketReplayEnabled()
       && isStaleSocketError(err)
     ) {
       dbg("FETCH", `stale keep-alive socket (${err.cause?.code || err.code || err.message}), retrying on fresh socket: ${url}`);
-      return await fetchWithTlsFallback(url, options, proxyUrl, true);
+      return await fetchWithTlsFallback(url, options, proxyUrl, true, allowReplay);
     }
     throw err;
   }
@@ -502,6 +503,7 @@ export async function proxyAwareFetch(url, options = {}, proxyOptions = null) {
   const envProxyUrl = connectionProxyUrl ? null : normalizeProxyUrl(getEnvProxyUrl(targetUrl));
   const proxyUrl = connectionProxyUrl || envProxyUrl;
   const forceFreshSocket = proxyOptions?.forceFreshSocket === true || options?.forceFreshSocket === true;
+  const allowReplay = options?.allowReplay !== false;
 
   // Protocol adapters that own their transport (wreq-js TLS impersonation)
   // cannot use an undici dispatcher: they must drive the proxy themselves.
@@ -528,7 +530,7 @@ export async function proxyAwareFetch(url, options = {}, proxyOptions = null) {
     if (proxyUrl) {
       // Proxy resolves DNS externally (not affected by /etc/hosts) — use proxy directly
       try {
-        return await fetchWithTlsFallback(url, options, proxyUrl, forceFreshSocket);
+        return await fetchWithTlsFallback(url, options, proxyUrl, forceFreshSocket, allowReplay);
       } catch (proxyError) {
         if (proxyOptions?.strictProxy === true) {
           throw new Error(`[ProxyFetch] Proxy required but failed (strictProxy=true): ${proxyError.message}`);
@@ -548,14 +550,14 @@ export async function proxyAwareFetch(url, options = {}, proxyOptions = null) {
 
   if (proxyUrl) {
     try {
-      return await fetchWithTlsFallback(url, options, proxyUrl, forceFreshSocket);
+      return await fetchWithTlsFallback(url, options, proxyUrl, forceFreshSocket, allowReplay);
     } catch (proxyError) {
       // If strictProxy is enabled, fail hard instead of falling back to direct
       if (proxyOptions?.strictProxy === true) {
         throw new Error(`[ProxyFetch] Proxy required but failed (strictProxy=true): ${proxyError.message}`);
       }
       console.warn(`[ProxyFetch] Proxy failed, falling back to direct: ${proxyError.message}`);
-      return fetchWithTlsFallback(url, options, null, forceFreshSocket);
+      return fetchWithTlsFallback(url, options, null, forceFreshSocket, allowReplay);
     }
   }
 
@@ -579,7 +581,7 @@ export async function proxyAwareFetch(url, options = {}, proxyOptions = null) {
 
   // got-scraping disabled — use native fetch directly
   // (Re-enable per-host by wrapping with tryGotScrapingFetch when needed)
-  return fetchWithTlsFallback(url, options, null, forceFreshSocket);
+  return fetchWithTlsFallback(url, options, null, forceFreshSocket, allowReplay);
 }
 
 /**

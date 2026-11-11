@@ -64,6 +64,21 @@ function normalizeProxyKey(proxyUrl) {
   }
 }
 
+function proxyCacheKey(proxyUrl) {
+  const raw = typeof proxyUrl === "string" ? proxyUrl.trim() : "";
+  if (!raw) return "";
+  try {
+    const parsed = new URL(raw);
+    return JSON.stringify([
+      normalizeProxyKey(raw),
+      parsed.username,
+      parsed.password,
+    ]);
+  } catch {
+    return raw;
+  }
+}
+
 async function buildSession(proxyUrl) {
   const wreq = await loadRuntimeDep("wreq-js");
   if (typeof wreq.createSession !== "function") {
@@ -80,7 +95,7 @@ async function buildSession(proxyUrl) {
 }
 
 async function loadSession(proxyUrl = "") {
-  const key = normalizeProxyKey(proxyUrl);
+  const key = proxyCacheKey(proxyUrl);
   if (!sessionsByProxy.has(key)) {
     if (sessionsByProxy.size >= SESSIONS_MAX) {
       // Evict oldest: a rotated-out pool identity should not hold connections.
@@ -147,4 +162,4 @@ export async function opencodeTlsFetch(url, init = {}, { signal, timeoutMs = DEF
   return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
 }
 
-export const __test__ = { OPENCODE_CIPHER_LIST, normalizeProxyKey, sessionsByProxy };
+export const __test__ = { OPENCODE_CIPHER_LIST, normalizeProxyKey, proxyCacheKey, sessionsByProxy };

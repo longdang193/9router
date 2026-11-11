@@ -14,6 +14,7 @@ import http from "node:http";
 import { BaseExecutor } from "../../open-sse/executors/base.js";
 import { formatProviderError } from "../../open-sse/utils/error.js";
 import { proxyAwareFetch } from "../../open-sse/utils/proxyFetch.js";
+import { NON_REPLAYABLE } from "../../open-sse/config/replayPolicy.js";
 
 // proxyAwareFetch honors env proxies — keep the dev machine's out of the loop
 const ENV_KEYS = ["HTTP_PROXY", "http_proxy", "HTTPS_PROXY", "https_proxy", "ALL_PROXY", "all_proxy", "NO_PROXY", "no_proxy"];
@@ -120,12 +121,27 @@ describe("A. request-phase ECONNRESET (RST before response headers)", () => {
       .toBe("[502]: fetch failed (cause: ECONNRESET: read ECONNRESET)");
   });
 
+  it("does not hide a fresh-socket replay behind a non-replayable request", async () => {
+    const before = rstHits;
+    const ex = makeExecutor(rstUrl);
+
+    await expect(ex.execute({
+      model: BODY.model,
+      body: BODY,
+      stream: false,
+      credentials: { accessToken: "tok" },
+      replayPolicy: NON_REPLAYABLE,
+    })).rejects.toMatchObject({ message: "fetch failed" });
+
+    expect(rstHits - before).toBe(1);
+  });
+
   it("with retries disabled, fails on the first attempt", async () => {
     const ex = new BaseExecutor("claude", { baseUrl: rstUrl, retry: { 502: { attempts: 0, delayMs: 0 } } });
     await expect(
       ex.execute({ model: BODY.model, body: BODY, stream: false, credentials: { accessToken: "tok" } }),
     ).rejects.toMatchObject({ message: "fetch failed" });
-    expect(rstHits).toBe(7); // 6 from the case above (3 + its 3 retries) + 1 here
+    expect(rstHits).toBe(8); // 6 from the first case + 1 non-replayable case + 1 here
   });
 });
 

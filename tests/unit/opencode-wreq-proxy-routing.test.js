@@ -74,6 +74,27 @@ describe("opencodeTlsClient proxy-aware sessions", () => {
     expect(fetchB).toHaveBeenCalledTimes(1);
   });
 
+  it("builds distinct sessions for different credentials on the same proxy host", async () => {
+    const fetchA = vi.fn().mockResolvedValue(new Response("a", { status: 200 }));
+    const fetchB = vi.fn().mockResolvedValue(new Response("b", { status: 200 }));
+    createSessionMock
+      .mockResolvedValueOnce(makeSession(fetchA))
+      .mockResolvedValueOnce(makeSession(fetchB));
+
+    const { opencodeTlsFetch, __test__ } = await import("../../open-sse/services/opencodeTlsClient.js");
+    await opencodeTlsFetch("https://opencode.ai/1", {}, { proxyUrl: "socks5://session-a:secret-a@127.0.0.1:9050" });
+    await opencodeTlsFetch("https://opencode.ai/2", {}, { proxyUrl: "socks5://session-b:secret-b@127.0.0.1:9050" });
+
+    expect(createSessionMock).toHaveBeenCalledTimes(2);
+    expect(__test__.sessionsByProxy.size).toBe(2);
+    expect(fetchA).toHaveBeenCalledTimes(1);
+    expect(fetchB).toHaveBeenCalledTimes(1);
+    expect(__test__.normalizeProxyKey("socks5://session-a:secret-a@127.0.0.1:9050"))
+      .toBe("socks5://127.0.0.1:9050");
+    expect(__test__.proxyCacheKey("socks5://session-a:secret-a@127.0.0.1:9050"))
+      .not.toBe(__test__.proxyCacheKey("socks5://session-b:secret-b@127.0.0.1:9050"));
+  });
+
   it("never reuses the old tunnel after a proxy change (fail-closed rotation)", async () => {
     const oldFetch = vi.fn().mockResolvedValue(new Response("old", { status: 200 }));
     const newFetch = vi.fn().mockResolvedValue(new Response("new", { status: 200 }));

@@ -33,6 +33,10 @@ vi.mock("@/lib/auth/dashboardSession", () => ({
   verifyDashboardAuthToken: mocks.verifyDashboardAuthToken,
 }));
 
+vi.mock("@/lib/auth/trustedPeer", () => ({
+  hasTrustedPeerHeaders: (request) => request.headers.has("x-9r-peer-token"),
+}));
+
 const { proxy, __test__ } = await import("../../src/dashboardGuard.js");
 
 const PEER_TOKEN = "peer-token-fixture";
@@ -228,6 +232,15 @@ describe("dashboard guard local-only access", () => {
 
   it("rejects local-only route from non-loopback host without CLI token", async () => {
     const response = await proxy(request("/api/mcp/filesystem/sse", {
+      host: "router.example.com",
+    }));
+
+    expect(response.status).toBe(403);
+    expect(response.body.error).toBe("Local only: CLI token required");
+  });
+
+  it("rejects remote Command Code credential auto-import without CLI token", async () => {
+    const response = await proxy(request("/api/oauth/commandcode/auto-import", {
       host: "router.example.com",
     }));
 
