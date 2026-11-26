@@ -40,4 +40,30 @@ describe("/v1/models thinking_levels", () => {
       expect(entry).not.toHaveProperty("thinking_levels");
     }
   });
+
+  it("aborts a stalled OpenCode catalog request and uses the static catalog", async () => {
+    const timeout = vi.spyOn(AbortSignal, "timeout").mockImplementation((ms) => {
+      const controller = new AbortController();
+      setTimeout(() => controller.abort(new DOMException("Timed out", "TimeoutError")), 10);
+      return controller.signal;
+    });
+    const fetchMock = vi.fn((_url, { signal }) => new Promise((_resolve, reject) => {
+      signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      db.getProviderConnections.mockResolvedValue([{ id: "claude-1", provider: "claude", isActive: true }]);
+      const models = await buildModelsList(["llm"]);
+      expect(timeout).toHaveBeenCalledWith(8000);
+      expect(fetchMock).toHaveBeenCalledWith(
+        "https://opencode.ai/zen/v1/models",
+        expect.objectContaining({ signal: expect.any(AbortSignal) }),
+      );
+      expect(models.some((model) => model.owned_by === "oc")).toBe(true);
+      expect(models.some((model) => model.owned_by === "cc")).toBe(true);
+    } finally {
+      vi.unstubAllGlobals();
+      timeout.mockRestore();
+    }
+  });
 });
