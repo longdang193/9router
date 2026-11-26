@@ -75,6 +75,7 @@ const LIVE_MODEL_RESOLVERS = {
       const res = await fetch("https://opencode.ai/zen/v1/models", {
         headers: { "x-opencode-client": "desktop" },
         cache: "no-store",
+        signal: AbortSignal.timeout(8000),
       });
       if (!res.ok) return null;
       const data = await res.json();

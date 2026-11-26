@@ -26,6 +26,7 @@ vi.mock("@/lib/disabledModelsDb", () => ({
 import { GET } from "@/app/api/models/route.js";
 import { getCustomModels } from "@/models";
 import { getThinkingLevels } from "open-sse/providers/thinkingLevels.js";
+import { ALIAS_TO_ID } from "@/shared/constants/providers";
 
 function jsonRes(obj) {
   return { json: async () => obj };
@@ -80,6 +81,12 @@ describe("/api/models — custom-model shadow dedupe", () => {
 
     expect(Array.isArray(expected)).toBe(true);
     expect(model?.thinking_levels).toEqual(expected);
+  });
+
+  it("resolves registry thinking levels using the canonical provider id", async () => {
+    const models = await fetchModels();
+    const model = models.find((entry) => entry.fullModel === "cx/gpt-6.1-sol");
+    expect(model?.thinking_levels).toEqual(getThinkingLevels(ALIAS_TO_ID.cx, "gpt-6.1-sol"));
   });
 });
 

@@ -24,7 +24,7 @@ export async function GET() {
         const providerAlias = getProviderAlias(m.provider) || m.provider;
         const routedModel = `${providerAlias}/${m.model}`;
         const c = getCapabilitiesForModel(m.provider, m.model);
-        const thinkingLevels = getThinkingLevels(m.provider, m.model);
+        const thinkingLevels = getThinkingLevels(ALIAS_TO_ID[m.provider] || m.provider, m.model);
         return {
           ...m,
           fullModel,
