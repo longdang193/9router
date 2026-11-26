@@ -5,6 +5,7 @@ import { AI_MODELS } from "@/shared/constants/config";
 import { getProviderAlias, ALIAS_TO_ID } from "@/shared/constants/providers";
 import { getCapabilitiesForModel } from "open-sse/providers/capabilities.js";
 import { isRetiredModel, isRetiredModelInfo } from "open-sse/config/retiredModels.js";
+import { getThinkingLevels } from "open-sse/providers/thinkingLevels.js";
 
 // GET /api/models - Get models with aliases
 export async function GET() {
@@ -23,11 +24,15 @@ export async function GET() {
         const providerAlias = getProviderAlias(m.provider) || m.provider;
         const routedModel = `${providerAlias}/${m.model}`;
         const c = getCapabilitiesForModel(m.provider, m.model);
+        const thinkingLevels = getThinkingLevels(m.provider, m.model);
         return {
           ...m,
           fullModel,
           routedModel,
           alias: modelAliases[fullModel] || m.model,
+          // Same per-model set /v1/models already publishes, so CLI-tool cards can
+          // seed thinking levels instead of guessing them (Pi, opencode).
+          ...(Array.isArray(thinkingLevels) && thinkingLevels.length > 0 ? { thinking_levels: thinkingLevels } : {}),
           caps: {
             vision: c.vision,
             search: c.search,
@@ -60,6 +65,7 @@ export async function GET() {
       const fullModel = `${m.providerAlias}/${m.id}`;
       const providerId = ALIAS_TO_ID[m.providerAlias] || m.providerAlias;
       const c = getCapabilitiesForModel(providerId, m.id);
+      const thinkingLevels = getThinkingLevels(providerId, m.id);
       models.push({
         provider: m.providerAlias,
         model: m.id,
@@ -67,6 +73,7 @@ export async function GET() {
         fullModel,
         routedModel: fullModel,
         alias: modelAliases[fullModel] || m.id,
+        ...(Array.isArray(thinkingLevels) && thinkingLevels.length > 0 ? { thinking_levels: thinkingLevels } : {}),
         caps: {
           vision: c.vision,
           search: c.search,
@@ -115,3 +122,4 @@ export async function PUT(request) {
     return NextResponse.json({ error: "Failed to update alias" }, { status: 500 });
   }
 }
+
